@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,9 +20,6 @@ import { Link } from "react-router-dom";
 export function MainPopup() {
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
 
-  const [onUserPage, setOnUserPage] = useState<boolean | null>(null);
-  const [onJobsPage, setOnJobsPage] = useState<boolean | null>(null);
-
   const features = [
     {
       id: "summarizer",
@@ -40,7 +37,7 @@ export function MainPopup() {
       icon: User,
       status: "ready",
       action: "Optimize Profile",
-      link: "",
+      link: "/profile-optimizer",
     },
     {
       id: "cover-letter",

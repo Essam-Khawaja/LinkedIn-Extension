@@ -6,6 +6,7 @@ import "../style.css";
 import { MainPopup } from "../main-popup/MainPopup";
 import JobSummarizer from "../job-summarizer/job-summarizer";
 import PopupApp from "./popux";
+import { ProfileOptimizer } from "../profile-optimizer/ProfileOptimizer";
 
 const router = createHashRouter([
   {
@@ -15,6 +16,10 @@ const router = createHashRouter([
   {
     path: "job-summarizer",
     element: <JobSummarizer />,
+  },
+  {
+    path: "profile-optimizer",
+    element: <ProfileOptimizer />,
   },
 ]);
 
