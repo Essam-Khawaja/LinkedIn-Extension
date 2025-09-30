@@ -32,7 +32,7 @@ It integrates directly with LinkedIn to **summarize job postings, optimize your 
 - Node.js & npm (for development)  
 
 ### Installation
-1. Clone the repo:  
+Clone the repo:  
    ```bash
    git clone https://github.com/YOUR-ORG/job-hunt-copilot.git
    cd job-hunt-copilot
