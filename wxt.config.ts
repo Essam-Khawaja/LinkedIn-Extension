@@ -7,6 +7,15 @@ export default defineConfig({
   outDir: "dist",            // default: ".output"
   publicDir: "static",       // default: "public"
 
+  manifest: {
+    web_accessible_resources: [
+      {
+        resources: ['*.css', 'icons/*', 'job.content.ts'],
+        matches: ['<all_urls>']
+      }
+    ]
+  },
+
   // Relative to srcDir
   entrypointsDir: "entrypoints", // default: "entrypoints"
 })

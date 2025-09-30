@@ -3,6 +3,18 @@
   "name": "wxt-react-starter",
   "description": "manifest.json description",
   "version": "0.0.0",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "*.css",
+        "icons/*",
+        "job.content.ts"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "commands": {
     "wxt:reload-extension": {
       "description": "Reload the extension during development",
@@ -20,6 +32,7 @@
   },
   "host_permissions": [
     "*://*.google.com/*",
+    "*://*.linkedin.com/jobs/*",
     "http://localhost/*"
   ],
   "content_security_policy": {

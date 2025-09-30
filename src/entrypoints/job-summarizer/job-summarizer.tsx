@@ -24,19 +24,70 @@ import {
   Mail,
   ArrowRight,
 } from "lucide-react";
+import { browser } from "wxt/browser";
 
-export default function JobSummarizer() {
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showSummary, setShowSummary] = useState(true);
+interface JobData {
+  title: string;
+  company: string;
+  location: string;
+  type: string;
+  salary: string;
+  posted: string;
+}
+
+interface Skill {
+  name: string;
+  match: number;
+}
+
+// interface ScrapedData {
+//   jobData: JobData;
+//   requirements: string[];
+//   skills: Skill[];
+// }
+
+export function useContentScriptData() {
   const [onJobsPage, setOnJobsPage] = useState<boolean | null>(null);
+  const [scrapedData, setScrapedData] = useState<any | null>(null);
+  const [dataIsLoaded, setDataIsLoaded] = useState(false);
 
   useEffect(() => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const url = tabs[0]?.url || "";
-      setOnJobsPage(url.includes("linkedin.com/jobs/"));
-    });
+    const checkJobsPage = async () => {
+      try {
+        const tabs = await browser.tabs.query({
+          active: true,
+          currentWindow: true,
+        });
+        const url = tabs[0]?.url || "";
+        setOnJobsPage(url.includes("linkedin.com/jobs/"));
+      } catch (error) {
+        console.error("Error querying tabs:", error);
+        setOnJobsPage(false);
+      }
+    };
+
+    checkJobsPage();
+
+    const handleMessage = (message: any) => {
+      if (message.type === "RELAYED_SCRAPED_DATA") {
+        const temp = message.data;
+        setScrapedData(temp);
+        setDataIsLoaded(true);
+      }
+    };
+
+    browser.runtime.onMessage.addListener(handleMessage);
+
+    return () => {
+      browser.runtime.onMessage.removeListener(handleMessage);
+    };
   }, []);
 
+  return { onJobsPage, scrapedData, dataIsLoaded };
+}
+
+export default function JobSummarizer() {
+  const { onJobsPage, scrapedData, dataIsLoaded } = useContentScriptData();
   const jobData = {
     title: "Senior Frontend Engineer",
     company: "TechCorp Inc.",
@@ -88,6 +139,9 @@ export default function JobSummarizer() {
       </div>
     );
   }
+  if (!dataIsLoaded) {
+    return <h1>Loading...</h1>;
+  }
 
   return (
     <div className="extension-popup">
@@ -109,6 +163,13 @@ export default function JobSummarizer() {
             </Badge>
           </div>
         </CardHeader>
+
+        {dataIsLoaded && scrapedData ? (
+          <div className="p-2">
+            <h2 className="font-bold">Scraped Data</h2>
+            <p>Company: {scrapedData.company}</p>
+          </div>
+        ) : null}
 
         <CardContent className="space-y-4">
           {/* Job Info */}
