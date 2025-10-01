@@ -4,11 +4,14 @@ export default defineContentScript({
   main: () => {
     console.log("🚀 LinkedIn script running...");
 
+    let lastCompany: any = null;
     const observer = new MutationObserver(() => {
       const card = document.querySelector('.job-details-jobs-unified-top-card__company-name');
       const company = card?.textContent?.trim();
 
-      if (company) {
+      if (company && company !== lastCompany) {
+        lastCompany = company;
+        
         browser.runtime.sendMessage({
           type: 'SCRAPED_DATA',
           data: { company },

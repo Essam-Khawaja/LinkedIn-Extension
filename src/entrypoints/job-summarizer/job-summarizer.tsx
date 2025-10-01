@@ -25,6 +25,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { browser } from "wxt/browser";
+import checkPage from "@/lib/checkPage";
 
 interface JobData {
   title: string;
@@ -52,35 +53,49 @@ export function useContentScriptData() {
   const [dataIsLoaded, setDataIsLoaded] = useState(false);
 
   useEffect(() => {
-    const checkJobsPage = async () => {
-      try {
-        const tabs = await browser.tabs.query({
-          active: true,
-          currentWindow: true,
-        });
-        const url = tabs[0]?.url || "";
-        setOnJobsPage(url.includes("linkedin.com/jobs/"));
-      } catch (error) {
-        console.error("Error querying tabs:", error);
-        setOnJobsPage(false);
-      }
-    };
+    // const checkJobsPage = async () => {
+    //   try {
+    //     const tabs = await browser.tabs.query({
+    //       active: true,
+    //       currentWindow: true,
+    //     });
+    //     const url = tabs[0]?.url || "";
+    //     setOnJobsPage(url.includes("linkedin.com/jobs/"));
+    //   } catch (error) {
+    //     console.error("Error querying tabs:", error);
+    //     setOnJobsPage(false);
+    //   }
+    // };
 
-    checkJobsPage();
+    async function check() {
+      let isCorrectPage: boolean = await checkPage("linkedin.com/jobs/");
+      setOnJobsPage(isCorrectPage);
+    }
+
+    check();
+
+    async function fetchLastData() {
+      const data = await browser.runtime.sendMessage({
+        type: "GET_LATEST_SCRAPED",
+      });
+      if (data) {
+        setScrapedData(data);
+        setDataIsLoaded(true);
+      }
+    }
+
+    fetchLastData();
 
     const handleMessage = (message: any) => {
       if (message.type === "RELAYED_SCRAPED_DATA") {
-        const temp = message.data;
-        setScrapedData(temp);
+        console.log("Popup got message!", message.data);
+        setScrapedData(message.data);
         setDataIsLoaded(true);
       }
     };
 
     browser.runtime.onMessage.addListener(handleMessage);
-
-    return () => {
-      browser.runtime.onMessage.removeListener(handleMessage);
-    };
+    return () => browser.runtime.onMessage.removeListener(handleMessage);
   }, []);
 
   return { onJobsPage, scrapedData, dataIsLoaded };
