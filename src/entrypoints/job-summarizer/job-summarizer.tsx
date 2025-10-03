@@ -19,7 +19,6 @@ import {
   Star,
   Copy,
   Download,
-  Sparkles,
   CheckCircle,
   Mail,
   ArrowRight,
@@ -41,26 +40,24 @@ interface Skill {
   match: number;
 }
 
-// interface ScrapedData {
-//   jobData: JobData;
-//   requirements: string[];
-//   skills: Skill[];
-// }
+interface ScrapedData {
+  jobData: JobData;
+  requirements: string[];
+  skills: Skill[];
+}
 
 export function useContentScriptData() {
   const [onJobsPage, setOnJobsPage] = useState<boolean | null>(null);
-  const [scrapedData, setScrapedData] = useState<any | null>(null);
+  const [scrapedData, setScrapedData] = useState<ScrapedData | null>(null);
   const [dataIsLoaded, setDataIsLoaded] = useState(false);
 
   useEffect(() => {
-    // Check if we are on a LinkedIn jobs page
     async function check() {
       const isCorrectPage: boolean = await checkPage("linkedin.com/jobs/");
       setOnJobsPage(isCorrectPage);
     }
     check();
 
-    // Fetch the latest scraped data from the background
     async function fetchLastData() {
       try {
         const data = await browser.runtime.sendMessage({
@@ -76,7 +73,6 @@ export function useContentScriptData() {
     }
     fetchLastData();
 
-    // Handle relayed scraped data from the content script
     const handleMessage = (message: any) => {
       if (message?.type === "RELAYED_SCRAPED_DATA" && message.data) {
         console.log("Popup received relayed data:", message.data);
@@ -96,30 +92,6 @@ export function useContentScriptData() {
 
 export default function JobSummarizer() {
   const { onJobsPage, scrapedData, dataIsLoaded } = useContentScriptData();
-  const jobData = {
-    title: "Senior Frontend Engineer",
-    company: "TechCorp Inc.",
-    location: "San Francisco, CA",
-    type: "Full-time",
-    salary: "$120k - $160k",
-    posted: "2 days ago",
-  };
-
-  const requirements = [
-    "5+ years React experience",
-    "TypeScript proficiency",
-    "Next.js framework knowledge",
-    "GraphQL and REST APIs",
-    "Testing frameworks (Jest, Cypress)",
-  ];
-
-  const skills = [
-    { name: "React", match: 95 },
-    { name: "TypeScript", match: 88 },
-    { name: "Next.js", match: 92 },
-    { name: "GraphQL", match: 75 },
-    { name: "Testing", match: 82 },
-  ];
 
   if (!onJobsPage) {
     return (
@@ -132,7 +104,6 @@ export default function JobSummarizer() {
             <Button
               onClick={() =>
                 chrome.tabs.create({
-                  // Make sure to put in recommended at the end of the url
                   url: "https://www.linkedin.com/jobs/collections",
                 })
               }
@@ -147,9 +118,14 @@ export default function JobSummarizer() {
       </div>
     );
   }
-  if (!dataIsLoaded) {
+
+  if (!dataIsLoaded || !scrapedData) {
     return <h1>Loading...</h1>;
   }
+
+  const jobData = scrapedData.jobData;
+  const requirements = scrapedData.requirements || [];
+  const skills = scrapedData.skills || [];
 
   return (
     <div className="extension-popup">
@@ -172,23 +148,6 @@ export default function JobSummarizer() {
           </div>
         </CardHeader>
 
-        {/* {dataIsLoaded && scrapedData ? (
-          <div className="p-2">
-            <h2 className="font-bold">Scraped Data</h2>
-            <p>Company: {scrapedData.company}</p>
-          </div>
-        ) : null} */}
-
-        {/* ✅ Debug Section: show scraped data for testing */}
-        {scrapedData && (
-          <div className="p-2 bg-gray-100 rounded-md mb-2">
-            <h4 className="font-semibold text-sm mb-1">Scraped Data (Debug)</h4>
-            <pre className="text-xs overflow-x-auto">
-              {JSON.stringify(scrapedData, null, 2)}
-            </pre>
-          </div>
-        )}
-
         <CardContent className="space-y-4">
           {/* Job Info */}
           <div className="space-y-2">
@@ -204,7 +163,7 @@ export default function JobSummarizer() {
               </div>
               <div className="flex items-center gap-1">
                 <DollarSign className="w-3 h-3" />
-                {jobData.salary}
+                {jobData.salary || "N/A"}
               </div>
               <div className="flex items-center gap-1">
                 <Star className="w-3 h-3" />
@@ -216,42 +175,50 @@ export default function JobSummarizer() {
           <Separator />
 
           {/* Key Requirements */}
-          <div className="space-y-2">
-            <h4 className="font-medium text-sm">Key Requirements</h4>
-            <div className="space-y-1">
-              {requirements.map((req, index) => (
-                <div key={index} className="flex items-center gap-2 text-xs">
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-                  {req}
+          {requirements.length > 0 && (
+            <>
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm">Key Requirements</h4>
+                <div className="space-y-1">
+                  {requirements.map((req: string, index: number) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 text-xs"
+                    >
+                      <div className="w-1.5 h-1.5 bg-primary rounded-full" />
+                      {req}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
+              </div>
+              <Separator />
+            </>
+          )}
 
           {/* Skill Match */}
-          <div className="space-y-2">
-            <h4 className="font-medium text-sm">Your Skill Match</h4>
+          {skills.length > 0 && (
             <div className="space-y-2">
-              {skills.map((skill) => (
-                <div key={skill.name} className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span>{skill.name}</span>
-                    <span className="text-muted-foreground">
-                      {skill.match}%
-                    </span>
+              <h4 className="font-medium text-sm">Your Skill Match</h4>
+              <div className="space-y-2">
+                {skills.map((skill: { name: string; match: number }) => (
+                  <div key={skill.name} className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span>{skill.name}</span>
+                      <span className="text-muted-foreground">
+                        {skill.match}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-secondary rounded-full h-1.5">
+                      <div
+                        className="bg-primary h-1.5 rounded-full transition-all duration-300"
+                        style={{ width: `${skill.match}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="w-full bg-secondary rounded-full h-1.5">
-                    <div
-                      className="bg-primary h-1.5 rounded-full transition-all duration-300"
-                      style={{ width: `${skill.match}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
