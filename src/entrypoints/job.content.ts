@@ -1,55 +1,105 @@
 export default defineContentScript({
   matches: ['*://*.linkedin.com/jobs/*'],
   runAt: 'document_idle',
-main: () => {
-    console.log("🚀 LinkedIn extended scraping script running...");
+  main: () => {
+    console.log("🚀 LinkedIn job scraper running...");
+    
+    let lastJobId: string | null = null;
 
-    let lastJobData: any = null;
+    function scrapeJobData() {
+      // Get job title
+      const titleEl = document.querySelector('.job-details-jobs-unified-top-card__job-title h1');
+      const title = titleEl?.textContent?.trim() || '';
 
-    const observer = new MutationObserver(() => {
-      const titleEl = document.querySelector('.top-card-layout__title');
-      const companyEl = document.querySelector('.top-card-layout__company-url a, .job-details-jobs-unified-top-card__company-name');
-      const locationEl = document.querySelector('.top-card-layout__first-subline, .topcard__flavor--bullet');
-      const typeEl = document.querySelector('.job-criteria__text'); // often first one is job type
-      const salaryEl = Array.from(document.querySelectorAll('.job-criteria__text')).find(el => el.textContent?.includes('$'));
-      const postedEl = document.querySelector('.posted-time-ago__text');
+      // Get company name
+      const companyEl = document.querySelector('.job-details-jobs-unified-top-card__company-name a');
+      const company = companyEl?.textContent?.trim() || '';
 
-      if (!titleEl || !companyEl) return;
+      // Get metadata (location, posted date, applicants)
+      const metadataSpans = document.querySelectorAll('.job-details-jobs-unified-top-card__tertiary-description-container .tvm__text');
+      const location = metadataSpans[0]?.textContent?.trim() || '';
+      const posted = metadataSpans[2]?.querySelector('span')?.textContent?.trim() || '';
+      const applicants = metadataSpans[4]?.textContent?.trim() || '';
 
-      const jobData = {
-        title: titleEl.textContent?.trim() || "",
-        company: companyEl.textContent?.trim() || "",
-        location: locationEl?.textContent?.trim() || "",
-        type: typeEl?.textContent?.trim() || "",
-        salary: salaryEl?.textContent?.trim() || "",
-        posted: postedEl?.textContent?.trim() || "",
+      // Get job type badges (Hybrid, Full-time, Internship, etc.)
+      const typeBadges = Array.from(document.querySelectorAll('.job-details-fit-level-preferences button strong'))
+        .map(el => el.textContent?.trim())
+        .filter(Boolean);
+
+      // Get requirements (all list items in description)
+      const requirements = Array.from(document.querySelectorAll('.jobs-description__content li'))
+        .map(li => li.textContent?.replace(/\s+/g, ' ').trim())
+        .filter(text => text && text.length > 10);
+
+      // Get full description text for regex extraction
+      const descriptionEl = document.querySelector('.jobs-box__html-content');
+      const description = descriptionEl?.textContent?.trim() || '';
+
+      // Extract salary using regex
+      const salaryPatterns = [
+        /\$[\d,]+(?:\.\d{2})?\s*-\s*\$[\d,]+(?:\.\d{2})?\s*(?:CAD|USD|per hour)?/gi,
+        /\$?[\d,]+k\s*-\s*\$?[\d,]+k/gi,
+      ];
+      
+      let salary = '';
+      for (const pattern of salaryPatterns) {
+        const match = description.match(pattern);
+        if (match) {
+          salary = match[0];
+          break;
+        }
+      }
+
+      // Extract experience level
+      const experiencePattern = /(\d+)\+?\s*years?\s+(?:of\s+)?experience/gi;
+      const expMatch = description.match(experiencePattern);
+      const experience = expMatch ? expMatch[0] : '';
+
+      // Create unique job ID (to detect when user switches jobs)
+      const jobId = `${company}-${title}`;
+
+      return {
+        jobId,
+        title,
+        company,
+        location,
+        posted,
+        applicants,
+        types: typeBadges.join(', '),
+        salary,
+        experience,
+        requirements,
+        description,
       };
+    }
 
-      // Only send if job data changed
-      const hasChanged = JSON.stringify(jobData) !== JSON.stringify(lastJobData);
-      if (hasChanged) {
-        lastJobData = jobData;
-
-        // Optionally, extract skills from requirements if they exist
-        const requirementsEls = document.querySelectorAll('.description__job-criteria-text, .show-more-less-html__markup li');
-        const requirements = Array.from(requirementsEls).map(el => el.textContent?.trim() || "");
-
-        // Example simple skill matching (could be improved with NLP later)
-        const skills = ['React', 'TypeScript', 'Next.js', 'GraphQL', 'Testing'].map(skill => {
-          const match = requirements.filter(r => r.toLowerCase().includes(skill.toLowerCase())).length;
-          return { name: skill, match: Math.min(match * 20, 100) }; // crude match percentage
-        });
-
-        const scrapedData = { jobData, requirements, skills: skills };
+    function checkAndSendData() {
+      const jobData = scrapeJobData();
+      
+      // Only send if we have core data and it's a new job
+      if (jobData.company && jobData.title && jobData.jobId !== lastJobId) {
+        lastJobId = jobData.jobId;
         
-        console.log("Scraped Job Data:", scrapedData);
+        console.log('📊 Scraped job data:', jobData);
+        
         browser.runtime.sendMessage({
           type: 'SCRAPED_DATA',
-          data: { jobData, requirements, skills },
+          data: jobData,
         });
       }
+    }
+
+    // Initial scrape
+    checkAndSendData();
+
+    // Watch for job changes (when user clicks a different job)
+    const observer = new MutationObserver(() => {
+      checkAndSendData();
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true 
+    });
   },
 });

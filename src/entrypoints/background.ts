@@ -1,28 +1,45 @@
-let latestScraped: {
-  jobData?: any;
-  requirements?: string[];
-  skills?: { name: string; match: number }[];
-} | null = null;
+interface JobData {
+  jobId: string;
+  title: string;
+  company: string;
+  location: string;
+  posted: string;
+  applicants: string;
+  types: string;
+  salary: string;
+  experience: string;
+  requirements: string[];
+  description: string;
+}
+
+let latestScraped: JobData | null = null;
 
 export default defineBackground(() => {
   // Listen for messages from content scripts or popup
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.type) {
       case 'SCRAPED_DATA':
-        // Store the latest data
+        // Store the latest scraped job data
         latestScraped = message.data;
+        
+        console.log('Background: Received job data', {
+          company: latestScraped?.company,
+          title: latestScraped?.title
+        });
 
-        // Relay to other listeners (optional, e.g., popup)
+        // Relay to popup if it's open
         browser.runtime.sendMessage({
           type: 'RELAYED_SCRAPED_DATA',
           data: latestScraped,
+        }).catch(() => {
+          // Popup not open, ignore error
         });
         break;
 
       case 'GET_LATEST_SCRAPED':
-        // Respond with the latest scraped data
+        // Send the latest scraped data to requester
         sendResponse(latestScraped);
-        return true; // indicates async response support
+        return true; // Keep message channel open for async response
 
       default:
         break;
