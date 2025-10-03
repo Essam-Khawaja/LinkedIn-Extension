@@ -53,49 +53,42 @@ export function useContentScriptData() {
   const [dataIsLoaded, setDataIsLoaded] = useState(false);
 
   useEffect(() => {
-    // const checkJobsPage = async () => {
-    //   try {
-    //     const tabs = await browser.tabs.query({
-    //       active: true,
-    //       currentWindow: true,
-    //     });
-    //     const url = tabs[0]?.url || "";
-    //     setOnJobsPage(url.includes("linkedin.com/jobs/"));
-    //   } catch (error) {
-    //     console.error("Error querying tabs:", error);
-    //     setOnJobsPage(false);
-    //   }
-    // };
-
+    // Check if we are on a LinkedIn jobs page
     async function check() {
-      let isCorrectPage: boolean = await checkPage("linkedin.com/jobs/");
+      const isCorrectPage: boolean = await checkPage("linkedin.com/jobs/");
       setOnJobsPage(isCorrectPage);
     }
-
     check();
 
+    // Fetch the latest scraped data from the background
     async function fetchLastData() {
-      const data = await browser.runtime.sendMessage({
-        type: "GET_LATEST_SCRAPED",
-      });
-      if (data) {
-        setScrapedData(data);
-        setDataIsLoaded(true);
+      try {
+        const data = await browser.runtime.sendMessage({
+          type: "GET_LATEST_SCRAPED",
+        });
+        if (data) {
+          setScrapedData(data);
+          setDataIsLoaded(true);
+        }
+      } catch (err) {
+        console.error("Failed to fetch latest scraped data:", err);
       }
     }
-
     fetchLastData();
 
+    // Handle relayed scraped data from the content script
     const handleMessage = (message: any) => {
-      if (message.type === "RELAYED_SCRAPED_DATA") {
-        console.log("Popup got message!", message.data);
+      if (message?.type === "RELAYED_SCRAPED_DATA" && message.data) {
+        console.log("Popup received relayed data:", message.data);
         setScrapedData(message.data);
         setDataIsLoaded(true);
       }
     };
 
     browser.runtime.onMessage.addListener(handleMessage);
-    return () => browser.runtime.onMessage.removeListener(handleMessage);
+    return () => {
+      browser.runtime.onMessage.removeListener(handleMessage);
+    };
   }, []);
 
   return { onJobsPage, scrapedData, dataIsLoaded };
@@ -179,12 +172,22 @@ export default function JobSummarizer() {
           </div>
         </CardHeader>
 
-        {dataIsLoaded && scrapedData ? (
+        {/* {dataIsLoaded && scrapedData ? (
           <div className="p-2">
             <h2 className="font-bold">Scraped Data</h2>
             <p>Company: {scrapedData.company}</p>
           </div>
-        ) : null}
+        ) : null} */}
+
+        {/* ✅ Debug Section: show scraped data for testing */}
+        {scrapedData && (
+          <div className="p-2 bg-gray-100 rounded-md mb-2">
+            <h4 className="font-semibold text-sm mb-1">Scraped Data (Debug)</h4>
+            <pre className="text-xs overflow-x-auto">
+              {JSON.stringify(scrapedData, null, 2)}
+            </pre>
+          </div>
+        )}
 
         <CardContent className="space-y-4">
           {/* Job Info */}

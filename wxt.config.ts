@@ -12,8 +12,9 @@ export default defineConfig({
       {
         resources: ['*.css', 'icons/*', 'job.content.ts'],
         matches: ['<all_urls>']
-      }
-    ]
+      },
+    ],
+    permissions: ["tabs", "activeTab"],
   },
 
   // Relative to srcDir
