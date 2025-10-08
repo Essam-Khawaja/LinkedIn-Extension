@@ -2,10 +2,10 @@ import { defineConfig } from 'wxt';
 
 export default defineConfig({
   // Relative to project root
-  srcDir: "src",             // default: "."
-  modulesDir: "wxt-modules", // default: "modules"
-  outDir: "dist",            // default: ".output"
-  publicDir: "static",       // default: "public"
+  srcDir: "src",
+  modulesDir: "wxt-modules",
+  outDir: "dist",
+  publicDir: "static",
 
   manifest: {
     web_accessible_resources: [
@@ -15,8 +15,11 @@ export default defineConfig({
       },
     ],
     permissions: ["tabs", "activeTab"],
+    runner: {
+      disabled: true, // Add this line to disable auto-opening the browser
+    },
   },
 
   // Relative to srcDir
-  entrypointsDir: "entrypoints", // default: "entrypoints"
-})
+  entrypointsDir: "entrypoints",
+});

@@ -20,6 +20,9 @@
     "activeTab",
     "scripting"
   ],
+  "runner": {
+    "disabled": true
+  },
   "commands": {
     "wxt:reload-extension": {
       "description": "Reload the extension during development",

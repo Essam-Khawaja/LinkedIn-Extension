@@ -14,6 +14,26 @@ interface JobData {
 
 let latestScraped: JobData | null = null;
 
+async function tryAI()
+{
+  try {
+    const availability = await LanguageModel.availability();
+    const session = await LanguageModel.create();
+
+    const schema = { type: "string" };
+    const post = "Mugs and ramen bowls...";
+
+    const result = await session.prompt(
+      `Is this post about pottery?\n\n${post}`,
+      { responseConstraint: schema }
+    );
+
+    return JSON.parse(result);
+  } catch (err) {
+    console.error("Error in tryAI:", err);
+  }
+}
+
 export default defineBackground(() => {
   // Listen for messages from content scripts or popup
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -21,6 +41,13 @@ export default defineBackground(() => {
       case 'SCRAPED_DATA':
         // Store the latest scraped job data
         latestScraped = message.data;
+
+        tryAI().then(aiResult => {
+          console.log('AI Result:', aiResult); // <-- Add this line to log the result
+          if (latestScraped) latestScraped.title = aiResult;
+        }).catch(err => {
+          console.error('Error in tryAI().then:', err);
+        });
         
         console.log('Background: Received job data', {
           company: latestScraped?.company,
@@ -34,6 +61,7 @@ export default defineBackground(() => {
         }).catch(() => {
           // Popup not open, ignore error
         });
+        tryAI();
         break;
 
       case 'GET_LATEST_SCRAPED':
