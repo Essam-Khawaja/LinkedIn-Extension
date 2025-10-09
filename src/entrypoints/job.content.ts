@@ -31,12 +31,15 @@ export default defineContentScript({
         .filter(Boolean);
 
       // Requirements
-      const requirements = Array.from(document.querySelectorAll('.jobs-description__content li'))
-        .map(li => li.textContent?.replace(/\s+/g, ' ').trim())
-        .filter(text => text && text.length > 10);
+      // const requirements = Array.from(document.querySelectorAll('.jobs-description__content li'))
+      //   .map(li => li.textContent?.replace(/\s+/g, ' ').trim())
+      //   .filter(text => text && text.length > 10);
+      // const requirementsEL = document.querySelector("jobs-description-content__text--stretch");
+      // const description = requirementsEL!.textContent!.trim();
+
 
       // Description
-      const descriptionEl = document.querySelector('.jobs-box__html-content');
+      const descriptionEl = document.querySelector('.jobs-description__content');
       const description = descriptionEl?.textContent?.trim() || '';
 
       // Salary extraction
@@ -71,7 +74,7 @@ export default defineContentScript({
         types: typeBadges.join(', '),
         salary,
         experience,
-        requirements,
+        requirements: [],
         description,
       };
     }
