@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MainPopup } from "../main-popup/MainPopup";
+import MainPopup from "../main-popup/MainPopup";
 import RoutePopup from "../route-popup/RoutePopup";
 import checkPage from "@/lib/checkPage";
 

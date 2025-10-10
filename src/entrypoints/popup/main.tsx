@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { createHashRouter, RouterProvider } from "react-router-dom";
 
 import "../style.css";
-import { MainPopup } from "../main-popup/MainPopup";
+import MainPopup from "../main-popup/MainPopup";
 import JobSummarizer from "../job-summarizer/job-summarizer";
 import PopupApp from "./popux";
 import { ProfileOptimizer } from "../profile-optimizer/ProfileOptimizer";
