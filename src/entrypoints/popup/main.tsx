@@ -7,6 +7,7 @@ import MainPopup from "../main-popup/MainPopup";
 import JobSummarizer from "../job-summarizer/job-summarizer";
 import PopupApp from "./popux";
 import { ProfileOptimizer } from "../profile-optimizer/ProfileOptimizer";
+import AIToolsPage from "../ai-tools/ai-tools";
 
 const router = createHashRouter([
   {
@@ -20,6 +21,10 @@ const router = createHashRouter([
   {
     path: "profile-optimizer",
     element: <ProfileOptimizer />,
+  },
+  {
+    path: "ai-tools",
+    element: <AIToolsPage />,
   },
 ]);
 

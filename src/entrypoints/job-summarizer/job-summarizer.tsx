@@ -61,7 +61,7 @@ export function useContentScriptData() {
     async function fetchLastData() {
       try {
         const data = await browser.runtime.sendMessage({
-          type: "GET_LATEST_SCRAPED",
+          type: "GET_LATEST_JOB_SCRAPED",
         });
         if (data) {
           setScrapedData(data);

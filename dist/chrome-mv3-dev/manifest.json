@@ -41,6 +41,7 @@
   "host_permissions": [
     "*://*.google.com/*",
     "*://*.linkedin.com/jobs/*",
+    "*://*.linkedin.com/in/*",
     "http://localhost/*"
   ],
   "content_security_policy": {

@@ -23,6 +23,7 @@ import {
   Wand2,
   ArrowRight,
 } from "lucide-react";
+import checkPage from "@/lib/checkPage";
 
 export function ProfileOptimizer() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -86,10 +87,11 @@ export function ProfileOptimizer() {
   const [onUserPage, setOnUserPage] = useState<boolean | null>(null);
 
   useEffect(() => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const url = tabs[0]?.url || "";
-      setOnUserPage(url.includes("linkedin.com/in/"));
-    });
+    async function check() {
+      const isCorrectPage: boolean = await checkPage("linkedin.com/in/");
+      setOnUserPage(isCorrectPage);
+    }
+    check();
   }, []);
 
   if (!onUserPage) {

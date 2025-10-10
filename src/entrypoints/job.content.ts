@@ -115,7 +115,7 @@ export default defineContentScript({
 
         // Send to background
         browser.runtime.sendMessage({
-          type: 'SCRAPED_DATA',
+          type: 'JOB_SCRAPED_DATA',
           data: structuredData,
         }).then(() => {
           console.log('Data sent to background');
