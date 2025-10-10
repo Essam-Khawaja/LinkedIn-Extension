@@ -4,18 +4,13 @@ interface Skill {
 }
 
 interface JobData {
-  jobId: string;
   title: string;
   company: string;
   location: string;
-  posted: string;
-  applicants: string;
-  types: string;
+  type: string;
   salary: string;
-  experience: string;
-  requirements: string[];
+  posted: string;
   description: string;
-  skills: Skill[];
 }
 
 interface ScrapedData {
@@ -24,27 +19,37 @@ interface ScrapedData {
   skills: Skill[];
 }
 
-let latestScraped: JobData | null = null;
+let latestScraped: ScrapedData | null = null;
 
-async function tryAI(jobData: JobData) {
+
+async function analyzeJobWithAI(jobData: any) {
   try {
-    // Check if Gemini Nano is available
     // @ts-ignore
     const availability = await LanguageModel.availability();
+    console.log('✨ AI Availability:', availability);
 
     if (availability === 'no') {
-      console.warn("Gemini Nano not available.");
+      console.warn("❌ Gemini Nano not available");
       return null;
     }
 
-    // Create session
+    if (availability === 'after-download') {
+      console.log("⏳ Triggering Gemini Nano download...");
+      // @ts-ignore
+      await LanguageModel.create();
+      return null;
+    }
+
     // @ts-ignore
     const session = await LanguageModel.create();
 
-    // Define schema for structured output
+    const description = jobData.description 
+      ? jobData.description.substring(0, 1500)
+      : 'No description available';
+
     const schema = {
       type: "object",
-      required: ["cleanSummary", "salary", "skills"],
+      required: ["cleanSummary", "salary", "skills", "requirements"],
       additionalProperties: false,
       properties: {
         cleanSummary: { type: "string" },
@@ -68,115 +73,131 @@ async function tryAI(jobData: JobData) {
       },
     };
 
-    // Create prompt
-        const requirements = Array.isArray(jobData.requirements) 
-      ? jobData.requirements.slice(0, 10).join('\n- ')
-      : 'Not specified';
-    
-    const description = jobData.description 
-      ? jobData.description.substring(0, 1500)
-      : 'No description available';
-    const prompt = `
-You are analyzing a job posting. Extract key information and provide a structured response.
+    const prompt = `Analyze this job posting and extract key information.
 
 Job Details:
 - Title: ${jobData.title || 'Unknown'}
 - Company: ${jobData.company || 'Unknown'}
 - Location: ${jobData.location || 'Not specified'}
-- Type: ${jobData.types || 'Not specified'}
-- Current Salary Info: ${jobData.salary || "Not specified"}
-- Experience: ${jobData.experience || "Not specified"}
-- Posted: ${jobData.posted || 'Recently'}
+- Type: ${jobData.type || 'Not specified'}
+- Current Salary: ${jobData.salary || "Not specified"}
 
-Requirements:
-None right now, use the description text below to figure it out.
-
-Description:
+Full Description:
 ${description}
 
-Please provide:
-1. A concise 2-3 sentence summary (cleanSummary)
-2. Extracted salary information in format "$XX,XXX - $XX,XXX" or "N/A" if not found (salary)
-3. Top 5-7 technical skills required with match percentage 0-100 (skills)
-4. Update the requirements to a max of 5-7, and always include the basic qualifications or job requirements as first priority! (requirements)
+IMPORTANT: Only extract information that is explicitly stated in the description. Do not make up or infer information.
 
-Always return a valid JSON response according to the schema.
-`;
+Provide a JSON response with:
+1. cleanSummary: A 2-3 sentence concise summary of the role
+2. salary: Extract salary as "$XX,XXX - $XX,XXX" or "N/A" if not mentioned
+3. requirements: Extract 5-7 key qualifications/requirements (prioritize basic qualifications)
+4. skills: Array of 5-7 key technical skills with importance rating (0-100)
 
-const testPrompt = "Hey, reply with a 'Yes' in all the fields for now if you can read this"
+Example format:
+{
+  "cleanSummary": "Software engineer role focusing on...",
+  "salary": "$80,000 - $120,000",
+  "requirements": ["Bachelor's degree in CS", "3+ years experience"],
+  "skills": [{"name": "JavaScript", "match": 90}, {"name": "React", "match": 85}]
+}
 
-    // Get AI response
-    const result = await session.prompt(prompt, { 
-      responseConstraint: schema 
-    });
+Return ONLY valid JSON matching this structure.`;
 
-    // Parse and return
-    const parsed = JSON.parse(result);
-    console.log("AI Analysis Result:", parsed);
+    const result = await session.prompt(prompt);
+    console.log("🤖 Raw AI Response:", result);
+
+      let cleanedResult = result.trim();
     
-    // Destroy session to free resources
+    // Remove ```json and ``` if present
+    if (cleanedResult.startsWith('```json')) {
+      cleanedResult = cleanedResult.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanedResult.startsWith('```')) {
+      cleanedResult = cleanedResult.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    
+    const parsed = JSON.parse(cleanedResult);
+    
     session.destroy();
-    
     return parsed;
 
   } catch (err) {
-    console.error("Error in tryAI:", err);
     return null;
   }
 }
+
 export default defineBackground(() => {
-  // Listen for messages from content scripts or popup
+  console.log('🎯 Background script initialized');
+
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.type) {
       case 'SCRAPED_DATA':
-        // Store the latest scraped job data
-        latestScraped = message.data;
-
-        console.log('Description: ', latestScraped?.description);
-
-        tryAI(latestScraped!).then(aiResult => {
-        console.log("AI Result:", aiResult);
-
-        if (latestScraped && aiResult) {
-          latestScraped = {
-            ...latestScraped,
-            // aiSummary: aiResult.cleanSummary,
-            requirements: aiResult.requirements,
-            salary: aiResult.salary || latestScraped.salary,
-            skills: aiResult.skills || [],
-          };
-        }
-
-  // Now relay the enriched data
-  browser.runtime.sendMessage({
-    type: "RELAYED_SCRAPED_DATA",
-    data: latestScraped,
-  }).catch(() => {
-    // Popup not open, ignore error
-  });
-}).catch(err => {
-  console.error("Error in tryAI:", err);
-});
-
+        // Store the scraped data
+        const scrapedData = message.data as ScrapedData;
         
-        console.log('Background: Received job data', {
-          company: latestScraped?.company,
-          title: latestScraped?.title
-        });
+        // console.log('Background received job data:', {
+        //   company: scrapedData?.jobData.company,
+        //   title: scrapedData?.jobData.title,
+        //   hasDescription: !!scrapedData?.jobData.description,
+        //   descLength: scrapedData?.jobData.description?.length || 0,
+        // });
 
-        // Relay to popup if it's open
-        browser.runtime.sendMessage({
-          type: 'RELAYED_SCRAPED_DATA',
-          data: latestScraped,
-        }).catch(() => {
-          // Popup not open, ignore error
-        });
+        // Analyze with AI before storing/relaying
+        if (scrapedData?.jobData.description && scrapedData.jobData.description.length > 100) {
+          console.log('🔄 Starting AI analysis in background...');
+          
+          analyzeJobWithAI(scrapedData.jobData)
+            .then(aiResult => {
+              console.log('AI Result:', aiResult);
+
+              if (aiResult) {
+                // Enrich the data with AI results
+                latestScraped = {
+                  jobData: {
+                    ...scrapedData.jobData,
+                    salary: aiResult.salary || scrapedData.jobData.salary,
+                  },
+                  requirements: aiResult.requirements || scrapedData.requirements || [],
+                  skills: aiResult.skills || [],
+                };
+              } else {
+                // AI failed, use original data
+                latestScraped = scrapedData;
+              }
+
+              // Relay enriched data to popup
+              browser.runtime.sendMessage({
+                type: 'RELAYED_SCRAPED_DATA',
+                data: latestScraped,
+              }).catch(() => {
+                //
+              });
+            })
+            .catch(err => {
+              // Use original data on error
+              latestScraped = scrapedData;
+              
+              browser.runtime.sendMessage({
+                type: 'RELAYED_SCRAPED_DATA',
+                data: latestScraped,
+              }).catch(() => {});
+            });
+        } else {
+          // No description or too short, skip AI
+          latestScraped = scrapedData;
+          
+          browser.runtime.sendMessage({
+            type: 'RELAYED_SCRAPED_DATA',
+            data: latestScraped,
+          }).catch(() => {
+            //
+          });
+        }
         break;
 
       case 'GET_LATEST_SCRAPED':
-        // Send the latest scraped data to requester
+        // Popup requesting stored data
         sendResponse(latestScraped);
-        return true; // Keep message channel open for async response
+        return true; // Keep channel open for async
 
       default:
         break;

@@ -1,12 +1,20 @@
+interface Skill {
+  name: string;
+  match: number;
+}
+
 export default defineContentScript({
   matches: ['*://*.linkedin.com/jobs/*'],
   runAt: 'document_idle',
   main: () => {
     console.log("🚀 LinkedIn job scraper running...");
+    console.log("📍 Current URL:", window.location.href);
+    console.log("📍 Page title:", document.title);
 
     let lastJobId: string | null = null;
+    let isProcessing = false;
 
-    function scrapeJobData() {
+    async function scrapeJobData() {
       // Job title
       const titleEl = document.querySelector('.job-details-jobs-unified-top-card__job-title h1');
       const title = titleEl?.textContent?.trim() || '';
@@ -30,18 +38,11 @@ export default defineContentScript({
         .map(el => el.textContent?.trim())
         .filter(Boolean);
 
-      // Requirements
-      // const requirements = Array.from(document.querySelectorAll('.jobs-description__content li'))
-      //   .map(li => li.textContent?.replace(/\s+/g, ' ').trim())
-      //   .filter(text => text && text.length > 10);
-      // const requirementsEL = document.querySelector("jobs-description-content__text--stretch");
-      // const description = requirementsEL!.textContent!.trim();
-
-
       // Description
-      const descriptionEl = document.querySelector('.jobs-description__content');
-      const description = descriptionEl?.textContent?.trim() || '';
-
+      let description = '';
+      const oldSelector = document.querySelector('.jobs-description__content');
+        description = oldSelector?.textContent.trim() || '';
+      
       // Salary extraction
       const salaryPatterns = [
         /\$[\d,]+(?:\.\d{2})?\s*-\s*\$[\d,]+(?:\.\d{2})?\s*(?:CAD|USD|per hour)?/gi,
@@ -63,7 +64,6 @@ export default defineContentScript({
 
       // Unique job ID
       const jobId = `${company}-${title}`;
-
       return {
         jobId,
         title,
@@ -74,46 +74,67 @@ export default defineContentScript({
         types: typeBadges.join(', '),
         salary,
         experience,
-        requirements: [],
         description,
       };
     }
 
-    function checkAndSendData() {
-      const rawJobData = scrapeJobData();
+    async function checkAndSendData() {
+      if (isProcessing) {
+        return;
+      }
+      
+      const rawJobData = await scrapeJobData();
 
       if (rawJobData.company && rawJobData.title && rawJobData.jobId !== lastJobId) {
+        isProcessing = true;
         lastJobId = rawJobData.jobId;
 
-        console.log('📊 Scraped job data:', rawJobData);
+        // console.log('Scraped job data:', {
+        //   title: rawJobData.title,
+        //   company: rawJobData.company,
+        //   hasDescription: !!rawJobData.description,
+        //   descLength: rawJobData.description?.length || 0,
+        // });
 
-        // Transform to popup-friendly format
+        // Create the data structure that background/popup expects
         const structuredData = {
           jobData: {
             title: rawJobData.title,
             company: rawJobData.company,
             location: rawJobData.location,
             type: rawJobData.types,
-            salary: rawJobData.salary,
+            salary: rawJobData.salary || 'N/A',
             posted: rawJobData.posted,
+            description: rawJobData.description,
           },
-          requirements: rawJobData.requirements,
-          skills: [], // placeholder, can be filled later
+          requirements: [],
+          skills: [],
         };
 
+        // console.log('Sending data to background:', structuredData);
+
+        // Send to background
         browser.runtime.sendMessage({
           type: 'SCRAPED_DATA',
           data: structuredData,
+        }).then(() => {
+          console.log('Data sent to background');
+        }).catch((err) => {
+          console.error('Failed to send data:', err);
+        }).finally(() => {
+          isProcessing = false;
         });
       }
     }
 
-    // Initial scrape
-    checkAndSendData();
+    // Initial scrape with delay
+    setTimeout(checkAndSendData, 1500);
 
-    // Observe for job changes
+    // Observe for job changes with debounce
+    let debounceTimer: any;
     const observer = new MutationObserver(() => {
-      checkAndSendData();
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(checkAndSendData, 800);
     });
 
     observer.observe(document.body, {
