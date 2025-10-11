@@ -1320,6 +1320,9 @@
   .running {
     animation-play-state: running;
   }
+  .running\! {
+    animation-play-state: running !important;
+  }
   .zoom-in {
     --tw-enter-scale: 0;
   }
