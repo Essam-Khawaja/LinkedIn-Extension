@@ -106,7 +106,8 @@ export default defineContentScript({
                         const text = el?.textContent?.trim() || '';
                         if (text && text.length > 20) {  // Must be substantial text
                             about = text;
-                            console.log('About found with selector:', sel, 'Length:', text.length);
+                            console.log('About found with selector:'
+                            , sel, 'Length:', text.length);
                             break;
                         }
                     }

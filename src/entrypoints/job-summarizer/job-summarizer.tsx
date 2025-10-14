@@ -74,7 +74,7 @@ export function useContentScriptData() {
     fetchLastData();
 
     const handleMessage = (message: any) => {
-      if (message?.type === "RELAYED_SCRAPED_DATA" && message.data) {
+      if (message?.type === "RELAYED_JOB_SCRAPED_DATA" && message.data) {
         console.log("Popup received relayed data:", message.data);
         setScrapedData(message.data);
         setDataIsLoaded(true);
