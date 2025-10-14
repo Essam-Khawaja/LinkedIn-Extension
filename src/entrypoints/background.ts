@@ -84,6 +84,14 @@ export default defineBackground(() => {
           });
         }
         break;
+      
+      case 'SCRAPING_STARTED':
+        browser.runtime.sendMessage({
+            type: 'SCRAPING_STARTED',
+          }).catch(() => {
+            //
+          });
+        break;
 
       case 'PROFILE_SCRAPED_DATA':
         console.log('Background receiving content script call')

@@ -22,6 +22,7 @@ import {
   CheckCircle,
   Mail,
   ArrowRight,
+  Loader2,
 } from "lucide-react";
 import { browser } from "wxt/browser";
 import checkPage from "@/lib/checkPage";
@@ -50,6 +51,7 @@ export function useContentScriptData() {
   const [onJobsPage, setOnJobsPage] = useState<boolean | null>(null);
   const [scrapedData, setScrapedData] = useState<ScrapedData | null>(null);
   const [dataIsLoaded, setDataIsLoaded] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false); // NEW: Track if data is refreshing
 
   useEffect(() => {
     async function check() {
@@ -74,10 +76,18 @@ export function useContentScriptData() {
     fetchLastData();
 
     const handleMessage = (message: any) => {
+      // NEW: Detect when scraping starts
+      if (message?.type === "SCRAPING_STARTED") {
+        console.log("Scraping started, showing loading state");
+        setIsUpdating(true);
+        return;
+      }
+
       if (message?.type === "RELAYED_JOB_SCRAPED_DATA" && message.data) {
         console.log("Popup received relayed data:", message.data);
         setScrapedData(message.data);
         setDataIsLoaded(true);
+        setIsUpdating(false); // NEW: Data arrived, stop loading
       }
     };
 
@@ -87,11 +97,12 @@ export function useContentScriptData() {
     };
   }, []);
 
-  return { onJobsPage, scrapedData, dataIsLoaded };
+  return { onJobsPage, scrapedData, dataIsLoaded, isUpdating };
 }
 
 export default function JobSummarizer() {
-  const { onJobsPage, scrapedData, dataIsLoaded } = useContentScriptData();
+  const { onJobsPage, scrapedData, dataIsLoaded, isUpdating } =
+    useContentScriptData();
 
   if (!onJobsPage) {
     return (
@@ -119,8 +130,23 @@ export default function JobSummarizer() {
     );
   }
 
+  // Show loading skeleton while data is first loading
   if (!dataIsLoaded || !scrapedData) {
-    return <h1>Loading...</h1>;
+    return (
+      <div className="extension-popup">
+        <Card className="w-full max-w-md shadow-lg border-primary/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <CardTitle className="text-base">Loading job data...</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <LoadingSkeleton />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const jobData = scrapedData.jobData;
@@ -141,14 +167,30 @@ export default function JobSummarizer() {
                 AI-powered job post summary
               </CardDescription>
             </div>
-            <Badge variant="secondary" className="text-xs">
-              <CheckCircle className="w-3 h-3 mr-1" />
-              Analyzed
+            <Badge
+              variant={isUpdating ? "outline" : "secondary"}
+              className="text-xs"
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Analyzed
+                </>
+              )}
             </Badge>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent
+          className={`space-y-4 ${
+            isUpdating ? "opacity-50 pointer-events-none" : ""
+          }`}
+        >
           {/* Job Info */}
           <div className="space-y-2">
             <h3 className="font-semibold text-sm">{jobData.title}</h3>
@@ -222,19 +264,58 @@ export default function JobSummarizer() {
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
-            <Button size="sm" className="flex-1">
+            <Button size="sm" className="flex-1" disabled={isUpdating}>
               <Mail className="w-3 h-3 mr-1" />
               Generate Cover Letter
             </Button>
-            <Button size="sm" variant="outline">
+            <Button size="sm" variant="outline" disabled={isUpdating}>
               <Copy className="w-3 h-3" />
             </Button>
-            <Button size="sm" variant="outline">
+            <Button size="sm" variant="outline" disabled={isUpdating}>
               <Download className="w-3 h-3" />
             </Button>
           </div>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// Loading skeleton component
+function LoadingSkeleton() {
+  return (
+    <>
+      <div className="space-y-2">
+        <div className="h-4 bg-secondary rounded animate-pulse w-3/4" />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="h-3 bg-secondary rounded animate-pulse" />
+          <div className="h-3 bg-secondary rounded animate-pulse" />
+          <div className="h-3 bg-secondary rounded animate-pulse" />
+          <div className="h-3 bg-secondary rounded animate-pulse" />
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-2">
+        <div className="h-3 bg-secondary rounded animate-pulse w-1/2" />
+        <div className="space-y-1">
+          <div className="h-3 bg-secondary rounded animate-pulse" />
+          <div className="h-3 bg-secondary rounded animate-pulse" />
+          <div className="h-3 bg-secondary rounded animate-pulse" />
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-2">
+        <div className="h-3 bg-secondary rounded animate-pulse w-1/2" />
+        <div className="space-y-2">
+          <div className="h-2 bg-secondary rounded animate-pulse" />
+          <div className="h-2 bg-secondary rounded animate-pulse" />
+          <div className="h-2 bg-secondary rounded animate-pulse" />
+        </div>
+      </div>
+    </>
   );
 }

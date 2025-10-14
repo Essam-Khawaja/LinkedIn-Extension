@@ -82,6 +82,20 @@ export default defineContentScript({
       if (isProcessing) {
         return;
       }
+
+      isProcessing = true;
+
+    console.log('Scraping data...');
+    const rawData = await scrapeJobData();
+
+    if (!rawData) {
+        isProcessing = false;
+        return;
+    } else {
+            browser.runtime.sendMessage({
+        type: 'SCRAPING_STARTED'
+    }).catch(err => console.log('Popup may not be open'));
+    }
       
       const rawJobData = await scrapeJobData();
 
