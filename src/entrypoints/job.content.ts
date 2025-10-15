@@ -80,56 +80,75 @@ export default defineContentScript({
 
     async function checkAndSendData() {
       if (isProcessing) {
+        console.log('⏸️ Already processing, skipping...');
         return;
       }
       
       const rawJobData = await scrapeJobData();
 
-      if (rawJobData.company && rawJobData.title && rawJobData.jobId !== lastJobId) {
-        isProcessing = true;
+      // Check if we have valid data and if it's different from last job
+      const hasValidData = rawJobData.company && rawJobData.title && rawJobData.description && rawJobData.description.length > 100;
+      const isNewJob = rawJobData.jobId !== lastJobId;
+
+      console.log('🔍 Check results:', {
+        jobId: rawJobData.jobId,
+        lastJobId: lastJobId,
+        hasValidData,
+        isNewJob,
+        descLength: rawJobData.description?.length || 0
+      });
+
+      if (!hasValidData) {
+        console.log('⏳ Incomplete data, waiting for page to load...');
+        return;
+      }
+
+      if (!isNewJob) {
+        console.log('🔄 Same job, no update needed');
+        return;
+      }
+
+      // New job detected - start processing
+      console.log('📊 New job detected:', rawJobData.jobId);
+      isProcessing = true;
+
+      // Send loading state FIRST
+      console.log('🔄 Sending SCRAPING_STARTED');
+      browser.runtime.sendMessage({
+        type: 'SCRAPING_STARTED'
+      }).catch(err => console.log('Popup may not be open'));
+
+      // Small delay to ensure loading state is processed
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Create the data structure that background/popup expects
+      const structuredData = {
+        jobData: {
+          title: rawJobData.title,
+          company: rawJobData.company,
+          location: rawJobData.location,
+          type: rawJobData.types,
+          salary: rawJobData.salary || 'N/A',
+          posted: rawJobData.posted,
+          description: rawJobData.description,
+        },
+        requirements: [],
+        skills: [],
+      };
+
+      // Send actual data
+      browser.runtime.sendMessage({
+        type: 'JOB_SCRAPED_DATA',
+        data: structuredData,
+      }).then(() => {
+        console.log('✅ Data sent to background successfully');
+      }).catch((err) => {
+        console.error('❌ Failed to send data:', err);
+      }).finally(() => {
+        // ALWAYS update lastJobId after processing, regardless of success
         lastJobId = rawJobData.jobId;
-
-        // Send loading state FIRST
-        browser.runtime.sendMessage({
-          type: 'SCRAPING_STARTED'
-        }).catch(err => console.log('Popup may not be open'));
-
-        // Small delay to ensure loading state is processed
-        await new Promise(resolve => setTimeout(resolve, 50));
-
-        // Create the data structure that background/popup expects
-        const structuredData = {
-          jobData: {
-            title: rawJobData.title,
-            company: rawJobData.company,
-            location: rawJobData.location,
-            type: rawJobData.types,
-            salary: rawJobData.salary || 'N/A',
-            posted: rawJobData.posted,
-            description: rawJobData.description,
-          },
-          requirements: [],
-          skills: [],
-        };
-
-        // Send actual data
-        browser.runtime.sendMessage({
-          type: 'JOB_SCRAPED_DATA',
-          data: structuredData,
-        }).then(() => {
-          console.log('Data sent to background');
-        }).catch((err) => {
-          console.error('Failed to send data:', err);
-        }).finally(() => {
-          isProcessing = false;
-        });
-      }
-      else {
-        // No valid job data or same job
-        browser.runtime.sendMessage({
-            type: 'SCRAPING_STARTED'
-        }).catch(err => console.log('Popup may not be open'));
-      }
+        isProcessing = false;
+      });
     }
 
     // Initial scrape with delay
@@ -139,7 +158,7 @@ export default defineContentScript({
     let debounceTimer: any;
     const observer = new MutationObserver(() => {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(checkAndSendData, 800);
+      debounceTimer = setTimeout(checkAndSendData, 500);
     });
 
     observer.observe(document.body, {

@@ -51,7 +51,7 @@ export function useContentScriptData() {
   const [onJobsPage, setOnJobsPage] = useState<boolean | null>(null);
   const [scrapedData, setScrapedData] = useState<ScrapedData | null>(null);
   const [dataIsLoaded, setDataIsLoaded] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false); // NEW: Track if data is refreshing
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     async function check() {
@@ -60,39 +60,56 @@ export function useContentScriptData() {
     }
     check();
 
-    async function fetchLastData() {
+    // Function to fetch data from background
+    async function fetchData() {
       try {
-        const data = await browser.runtime.sendMessage({
+        const response = await browser.runtime.sendMessage({
           type: "GET_LATEST_JOB_SCRAPED",
         });
-        if (data) {
-          setScrapedData(data);
+
+        console.log("📦 Fetched from background:", response);
+
+        if (response?.data) {
+          setScrapedData(response.data);
           setDataIsLoaded(true);
         }
+
+        // Set updating state based on background processing status
+        setIsUpdating(response?.isProcessing || false);
       } catch (err) {
         console.error("Failed to fetch latest scraped data:", err);
       }
     }
-    fetchLastData();
 
+    // Fetch immediately when popup opens
+    fetchData();
+
+    // Poll every 500ms to check if processing state changed
+    const pollInterval = setInterval(() => {
+      fetchData();
+    }, 500);
+
+    // Also listen for messages in case popup is already open when job changes
     const handleMessage = (message: any) => {
-      // NEW: Detect when scraping starts
+      console.log("📨 Popup received message:", message.type);
+
       if (message?.type === "SCRAPING_STARTED") {
-        console.log("Scraping started, showing loading state");
+        console.log("🔄 Setting isUpdating to TRUE");
         setIsUpdating(true);
-        return;
       }
 
       if (message?.type === "RELAYED_JOB_SCRAPED_DATA" && message.data) {
-        console.log("Popup received relayed data:", message.data);
+        console.log("✅ Received new data");
         setScrapedData(message.data);
         setDataIsLoaded(true);
-        setIsUpdating(false); // NEW: Data arrived, stop loading
+        setIsUpdating(false);
       }
     };
 
     browser.runtime.onMessage.addListener(handleMessage);
+
     return () => {
+      clearInterval(pollInterval);
       browser.runtime.onMessage.removeListener(handleMessage);
     };
   }, []);
@@ -103,6 +120,15 @@ export function useContentScriptData() {
 export default function JobSummarizer() {
   const { onJobsPage, scrapedData, dataIsLoaded, isUpdating } =
     useContentScriptData();
+
+  // Debug logging
+  useEffect(() => {
+    console.log("🎨 Popup state:", {
+      dataIsLoaded,
+      isUpdating,
+      hasData: !!scrapedData,
+    });
+  }, [dataIsLoaded, isUpdating, scrapedData]);
 
   if (!onJobsPage) {
     return (
@@ -187,7 +213,7 @@ export default function JobSummarizer() {
         </CardHeader>
 
         <CardContent
-          className={`space-y-4 ${
+          className={`space-y-4 transition-opacity duration-200 ${
             isUpdating ? "opacity-50 pointer-events-none" : ""
           }`}
         >
