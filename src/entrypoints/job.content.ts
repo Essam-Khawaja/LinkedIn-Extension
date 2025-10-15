@@ -82,20 +82,6 @@ export default defineContentScript({
       if (isProcessing) {
         return;
       }
-
-      isProcessing = true;
-
-    console.log('Scraping data...');
-    const rawData = await scrapeJobData();
-
-    if (!rawData) {
-        isProcessing = false;
-        return;
-    } else {
-            browser.runtime.sendMessage({
-        type: 'SCRAPING_STARTED'
-    }).catch(err => console.log('Popup may not be open'));
-    }
       
       const rawJobData = await scrapeJobData();
 
@@ -103,12 +89,13 @@ export default defineContentScript({
         isProcessing = true;
         lastJobId = rawJobData.jobId;
 
-        // console.log('Scraped job data:', {
-        //   title: rawJobData.title,
-        //   company: rawJobData.company,
-        //   hasDescription: !!rawJobData.description,
-        //   descLength: rawJobData.description?.length || 0,
-        // });
+        // Send loading state FIRST
+        browser.runtime.sendMessage({
+          type: 'SCRAPING_STARTED'
+        }).catch(err => console.log('Popup may not be open'));
+
+        // Small delay to ensure loading state is processed
+        await new Promise(resolve => setTimeout(resolve, 50));
 
         // Create the data structure that background/popup expects
         const structuredData = {
@@ -125,9 +112,7 @@ export default defineContentScript({
           skills: [],
         };
 
-        // console.log('Sending data to background:', structuredData);
-
-        // Send to background
+        // Send actual data
         browser.runtime.sendMessage({
           type: 'JOB_SCRAPED_DATA',
           data: structuredData,
@@ -138,6 +123,12 @@ export default defineContentScript({
         }).finally(() => {
           isProcessing = false;
         });
+      }
+      else {
+        // No valid job data or same job
+        browser.runtime.sendMessage({
+            type: 'SCRAPING_STARTED'
+        }).catch(err => console.log('Popup may not be open'));
       }
     }
 

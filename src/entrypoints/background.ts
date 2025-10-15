@@ -32,7 +32,6 @@ export default defineBackground(() => {
         // Store the scraped data
         const scrapedData = message.data as ScrapedData;
 
-        // Analyze with AI before storing/relaying
         if (scrapedData?.jobData.description && scrapedData.jobData.description.length > 100) {
           // console.log('🔄 Starting AI analysis in background...');
           
