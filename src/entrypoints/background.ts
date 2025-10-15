@@ -1,4 +1,4 @@
-import analyzeJobWithAI from "@/lib/background-help/job-summarizer";
+import { analyzeJobWithAI } from '../lib/background-help/job-summarizer'
 
 interface Skill {
   name: string;
@@ -60,6 +60,7 @@ export default defineBackground(() => {
                   jobData: {
                     ...scrapedData.jobData,
                     salary: aiResult.salary || scrapedData.jobData.salary,
+                    description: aiResult.cleanSummary || scrapedData.jobData.description,
                   },
                   requirements: aiResult.requirements || scrapedData.requirements || [],
                   skills: aiResult.skills || [],

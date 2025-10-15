@@ -34,6 +34,7 @@ interface JobData {
   type: string;
   salary: string;
   posted: string;
+  description: string;
 }
 
 interface Skill {
@@ -217,6 +218,7 @@ export default function JobSummarizer() {
             isUpdating ? "opacity-50 pointer-events-none" : ""
           }`}
         >
+          {/* <span>{jobData.description}</span> */}
           {/* Job Info */}
           <div className="space-y-2">
             <h3 className="font-semibold text-sm">{jobData.title}</h3>
