@@ -10,14 +10,11 @@ export default defineConfig({
   manifest: {
     web_accessible_resources: [
       {
-        resources: ['*.css', 'icons/*', 'job.content.ts'],
+        resources: ['*.css', 'icons/*', 'job.content.ts', 'content.ts'],
         matches: ['<all_urls>']
       },
     ],
-    permissions: ["tabs", "activeTab"],
-    runner: {
-      disabled: true, // Add this line to disable auto-opening the browser
-    },
+    permissions: ["tabs", "activeTab", "scripting"],
   },
 
   // Relative to srcDir

@@ -8,7 +8,8 @@
       "resources": [
         "*.css",
         "icons/*",
-        "job.content.ts"
+        "job.content.ts",
+        "content.ts"
       ],
       "matches": [
         "<all_urls>"
@@ -20,9 +21,6 @@
     "activeTab",
     "scripting"
   ],
-  "runner": {
-    "disabled": true
-  },
   "commands": {
     "wxt:reload-extension": {
       "description": "Reload the extension during development",
@@ -39,7 +37,7 @@
     "default_popup": "popup.html"
   },
   "host_permissions": [
-    "*://*.google.com/*",
+    "<all_urls>",
     "*://*.linkedin.com/jobs/*",
     "*://*.linkedin.com/in/*",
     "http://localhost/*"

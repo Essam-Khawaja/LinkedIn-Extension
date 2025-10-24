@@ -9,6 +9,37 @@ import NavigationBar from "@/components/navigation-bar";
 import { FileText, UserPlus, Briefcase, Sparkles } from "lucide-react";
 
 export default function MainPopup() {
+  // In your popup component
+  function handleApplyClick() {
+    chrome.tabs
+      .query({ active: true, currentWindow: true })
+      .then(async ([tab]) => {
+        if (!tab?.id) return;
+
+        try {
+          // First, try to send a message to see if content script is already loaded
+          await chrome.tabs.sendMessage(tab.id, { action: "ping" });
+          // If successful, send the actual message
+          chrome.tabs.sendMessage(tab.id, { action: "start-auto-fill" });
+        } catch (error) {
+          // Content script not loaded, inject it first
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ["content-scripts/content.js"], // Adjust path based on your build output
+            });
+
+            // Give it a moment to initialize, then send message
+            setTimeout(() => {
+              chrome.tabs.sendMessage(tab.id!, { action: "start-auto-fill" });
+            }, 100);
+          } catch (injectionError) {
+            console.error("Failed to inject content script:", injectionError);
+          }
+        }
+      });
+  }
+
   return (
     <div className="min-h-screen w-full max-w-md mx-auto bg-background pb-20 extension-popup">
       {/* Header with User Info and XP */}
@@ -71,10 +102,16 @@ export default function MainPopup() {
         <div className="flex flex-col gap-3">
           <Button
             size="lg"
+            onClick={handleApplyClick}
             className="w-full h-14 text-base font-semibold gradient-primary hover:opacity-90 transition-opacity"
           >
-            <FileText className="h-5 w-5 mr-2" />
-            Make a post
+            <Link
+              to={"./auto-apply"}
+              className="w-full h-full flex justify-center items-center"
+            >
+              <FileText className="h-5 w-5 mr-2" />
+              Auto-Apply
+            </Link>
           </Button>
           <Button
             size="lg"

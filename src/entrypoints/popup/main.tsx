@@ -3,11 +3,12 @@ import ReactDOM from "react-dom/client";
 import { createHashRouter, RouterProvider } from "react-router-dom";
 
 import "../style.css";
-import MainPopup from "../main-popup/MainPopup";
+// import MainPopup from "../main-popup/MainPopup";
 import JobSummarizer from "../job-summarizer/job-summarizer";
 import PopupApp from "./popux";
 import { ProfileOptimizer } from "../profile-optimizer/ProfileOptimizer";
 import AIToolsPage from "../ai-tools/ai-tools";
+import AutoApply from "../auto-apply/AutoApply";
 
 const router = createHashRouter([
   {
@@ -25,6 +26,10 @@ const router = createHashRouter([
   {
     path: "ai-tools",
     element: <AIToolsPage />,
+  },
+  {
+    path: "auto-apply",
+    element: <AutoApply />,
   },
 ]);
 

@@ -1,4 +1,4 @@
-export default interface User{
+export default interface UserProfile{
     firstName: string;
     lastName: string;
     email: string;
@@ -9,4 +9,9 @@ export default interface User{
     yearsExperience?: number;
     needsSponsorship?: boolean;
     willingToRelocate?: boolean;
+    state: string;
+    city: string;
+    zip: string;
+    address: string;
+    portfolio: string;
 }
