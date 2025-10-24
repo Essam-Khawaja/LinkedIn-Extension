@@ -3,6 +3,15 @@
   "name": "wxt-react-starter",
   "description": "manifest.json description",
   "version": "0.0.0",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "web_accessible_resources": [
     {
       "resources": [
@@ -16,12 +25,6 @@
       ]
     }
   ],
-  "permissions": [
-    "tabs",
-    "activeTab",
-    "scripting",
-    "storage"
-  ],
   "commands": {
     "wxt:reload-extension": {
       "description": "Reload the extension during development",
@@ -29,9 +32,6 @@
         "default": "Alt+R"
       }
     }
-  },
-  "background": {
-    "service_worker": "background.js"
   },
   "action": {
     "default_title": "Default Popup Title",

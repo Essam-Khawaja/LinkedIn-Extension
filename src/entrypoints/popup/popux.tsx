@@ -21,9 +21,9 @@ function PopupApp() {
 
   if (onLinkedIn === null) return <div>Loading...</div>;
 
-  if (!onLinkedIn) {
-    return <RoutePopup />;
-  }
+  // if (!onLinkedIn) {
+  //   return <RoutePopup />;
+  // }
 
   return <MainPopup />;
 }

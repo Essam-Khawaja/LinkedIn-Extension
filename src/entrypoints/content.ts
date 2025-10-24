@@ -10,16 +10,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "start-auto-fill") {
     console.log("Received auto-fill request");
 
-    // Call your function to start autofill
-handleAutoFillClick();
-    // Optionally send a response back
-    // sendResponse({ status: "Auto-fill started" });
+    chrome.runtime.sendMessage({ type: "GET_PROFILE" }, (response) => {
+  if (chrome.runtime.lastError) {
+    console.error("❌ Background error:", chrome.runtime.lastError);
+    return;
   }
+  console.log("✅ Got profile:", response);
+  handleAutoFillClick(response.profile)
 });
+    }
+  });
   }
 });
 
-async function handleAutoFillClick() {
+async function handleAutoFillClick(profile: any) {
   // const button = document.getElementById('job-copilot-autofill-btn');
   // if (!button) return;
   
@@ -29,14 +33,14 @@ async function handleAutoFillClick() {
     // button.style.pointerEvents = 'none';
     
     // Get user profile
-    let profile;
-    chrome.runtime.sendMessage({ action: "get-profile" }, (response) => {
-        profile = response?.profile;
-    });    
-    if (!profile) {
-      alert('Please set up your profile first in the extension popup!');
-      return;
-    }
+    // let profile;
+    // chrome.runtime.sendMessage({ action: "GET_PROFILE" }, (response) => {
+    //     profile = response?.profile;
+    // });    
+    // if (!profile) {
+    //   alert('Please set up your profile first in the extension popup!');
+    //   return;
+    // }
     
     // Do the auto-fill
     const result = await autoFillForm(profile);

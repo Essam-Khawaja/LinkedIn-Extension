@@ -27,7 +27,7 @@ let isProcessing = false; // Track if AI analysis is in progress
 export default defineBackground(() => {
   console.log('🎯 Background script initialized');
 
-  browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.type) {
       case 'SCRAPING_STARTED':
         // Mark as processing
@@ -41,6 +41,50 @@ export default defineBackground(() => {
           console.log('Popup not open, state stored in background');
         });
         break;
+
+  case 'GET_PROFILE': {
+  console.log("📩 GET_PROFILE received in background");
+
+  // We MUST return true now, so the port stays open
+  const respond = sendResponse;
+  (async () => {
+    try {
+      // 1) Save test profile
+      await chrome.storage.local.set({
+        profile: {
+          firstName: 'John',
+          lastName: 'Doe',
+          email: 'john.doe@example.com',
+          phone: '555-0123',
+          linkedin: 'https://linkedin.com/in/johndoe',
+          portfolio: 'https://johndoe.com',
+          address: '123 Main St',
+          city: 'San Francisco',
+          state: 'CA',
+          zip: '94102',
+          currentCompany: 'Tech Corp',
+          currentTitle: 'Software Engineer',
+          yearsExperience: 5,
+          needsSponsorship: false,
+          willingToRelocate: true
+        }
+      });
+
+      console.log('✅ Test profile saved');
+
+      // 2) Retrieve & send back
+      const data = await chrome.storage.local.get('profile');
+      console.log('📤 Sending profile to content:', data);
+      respond({ ok: true, profile: data.profile });
+    } catch (err) {
+      console.error("❌ Error in GET_PROFILE:", err);
+      respond({ ok: false, error: err.toString() });
+    }
+  })();
+
+  return true;
+}
+
 
       case 'JOB_SCRAPED_DATA':
         // Store the scraped data
