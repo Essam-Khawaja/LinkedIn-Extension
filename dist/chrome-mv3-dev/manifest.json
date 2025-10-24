@@ -19,7 +19,8 @@
   "permissions": [
     "tabs",
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "commands": {
     "wxt:reload-extension": {

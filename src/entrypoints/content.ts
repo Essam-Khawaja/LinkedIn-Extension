@@ -2,55 +2,37 @@ import type  UserProfile  from '@/lib/types/user';
 
 export default defineContentScript({
   matches: [
-    '<all_urls>',
   ],
   
   async main() {
     console.log('Auto-fill script loaded');
-    addAutoFillButton();
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "start-auto-fill") {
+    console.log("Received auto-fill request");
+
+    // Call your function to start autofill
+handleAutoFillClick();
+    // Optionally send a response back
+    // sendResponse({ status: "Auto-fill started" });
+  }
+});
   }
 });
 
-// ============================================
-// BUTTON & UI
-// ============================================
-
-function addAutoFillButton() {
-  const button = document.createElement('button');
-  button.id = 'job-copilot-autofill-btn';
-  button.textContent = '🤖 Auto-fill Application';
-  button.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 10000;
-    padding: 12px 24px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  `;
-  
-  button.onclick = handleAutoFillClick;
-  document.body.appendChild(button);
-}
-
 async function handleAutoFillClick() {
-  const button = document.getElementById('job-copilot-autofill-btn');
-  if (!button) return;
+  // const button = document.getElementById('job-copilot-autofill-btn');
+  // if (!button) return;
   
   try {
     // Show loading state
-    button.textContent = '⏳ Filling...';
-    button.style.pointerEvents = 'none';
+    // button.textContent = '⏳ Filling...';
+    // button.style.pointerEvents = 'none';
     
     // Get user profile
-    const { profile } = await browser.storage.local.get('profile');
-    
+    let profile;
+    chrome.runtime.sendMessage({ action: "get-profile" }, (response) => {
+        profile = response?.profile;
+    });    
     if (!profile) {
       alert('Please set up your profile first in the extension popup!');
       return;
@@ -67,10 +49,10 @@ async function handleAutoFillClick() {
     alert('Something went wrong. Please try again.');
   } finally {
     // Reset button
-    if (button) {
-      button.textContent = '🤖 Auto-fill Application';
-      button.style.pointerEvents = 'auto';
-    }
+    // if (button) {
+    //   button.textContent = '🤖 Auto-fill Application';
+    //   button.style.pointerEvents = 'auto';
+    // }
   }
 }
 
@@ -490,15 +472,51 @@ Provide only the answer, no preamble or explanation:`;
 
   try {
     // @ts-ignore - Chrome AI API
-    if (!window.ai?.languageModel) {
-      console.warn('Chrome AI not available');
+    // if (!window.ai?.languageModel) {
+    //   console.warn('Chrome AI not available');
+    //   return null;
+    // }
+
+    // @ts-ignore
+    const availability = await LanguageModel.availability();
+
+    if (availability === 'no') {
+      console.warn("❌ Gemini Nano not available");
       return null;
     }
+
+    if (availability === 'after-download') {
+      console.log("⏳ Triggering Gemini Nano download...");
+      // @ts-ignore
+      await LanguageModel.create();
+      return null;
+    }
+
+    // @ts-ignore
+    const session = await LanguageModel.create();
+
+    const result = await session.prompt(prompt);
+    console.log("🤖 Raw AI Response:", result);
+
+      let cleanedResult = result.trim();
+    
+    // // Remove ```json and ``` if present
+    // if (cleanedResult.startsWith('```json')) {
+    //   cleanedResult = cleanedResult.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    // } else if (cleanedResult.startsWith('```')) {
+    //   cleanedResult = cleanedResult.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    // }
+    
+    // const parsed = JSON.parse(cleanedResult);
+    
+    session.destroy();
+    return cleanedResult;
+
     
     // @ts-ignore
-    const session = await window.ai.languageModel.create();
-    const answer = await session.prompt(prompt);
-    return answer.trim();
+    // const session = await window.ai.languageModel.create();
+    // const answer = await session.prompt(prompt);
+    // return answer.trim();
   } catch (error) {
     console.error('AI answering failed:', error);
     return null;

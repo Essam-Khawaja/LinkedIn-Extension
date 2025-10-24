@@ -14,7 +14,7 @@ export default defineConfig({
         matches: ['<all_urls>']
       },
     ],
-    permissions: ["tabs", "activeTab", "scripting"],
+    permissions: ["tabs", "activeTab", "scripting", "storage"],
   },
 
   // Relative to srcDir
