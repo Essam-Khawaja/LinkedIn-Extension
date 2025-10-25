@@ -46,7 +46,7 @@ async function handleAutoFillClick(profile: any) {
     const result = await autoFillForm(profile);
     
     // Show success
-    showSuccessMessage(result.filled, result.aiAnswered);
+    // showSuccessMessage(result.filled, result.aiAnswered);
     
   } catch (error) {
     console.error('Auto-fill error:', error);
@@ -124,6 +124,8 @@ function getAllFields(): FieldInfo[] {
       required
     });
   });
+
+  console.log(fields);
   
   return fields;
 }
