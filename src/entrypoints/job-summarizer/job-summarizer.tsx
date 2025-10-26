@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Briefcase,
   MapPin,
@@ -23,6 +24,7 @@ import {
   Mail,
   ArrowRight,
   Loader2,
+  X,
 } from "lucide-react";
 import { browser } from "wxt/browser";
 import checkPage from "@/lib/checkPage";
@@ -61,46 +63,33 @@ export function useContentScriptData() {
     }
     check();
 
-    // Function to fetch data from background
     async function fetchData() {
       try {
         const response = await browser.runtime.sendMessage({
           type: "GET_LATEST_JOB_SCRAPED",
         });
 
-        console.log("📦 Fetched from background:", response);
-
         if (response?.data) {
           setScrapedData(response.data);
           setDataIsLoaded(true);
         }
 
-        // Set updating state based on background processing status
         setIsUpdating(response?.isProcessing || false);
       } catch (err) {
-        console.error("Failed to fetch latest scraped data:", err);
+        console.error("Failed to fetch data:", err);
       }
     }
 
-    // Fetch immediately when popup opens
     fetchData();
 
-    // Poll every 500ms to check if processing state changed
-    const pollInterval = setInterval(() => {
-      fetchData();
-    }, 500);
+    const pollInterval = setInterval(fetchData, 500);
 
-    // Also listen for messages in case popup is already open when job changes
     const handleMessage = (message: any) => {
-      console.log("Popup received message:", message.type);
-
       if (message?.type === "SCRAPING_STARTED") {
-        console.log("Setting isUpdating to TRUE");
         setIsUpdating(true);
       }
 
       if (message?.type === "RELAYED_JOB_SCRAPED_DATA" && message.data) {
-        console.log("Received new data");
         setScrapedData(message.data);
         setDataIsLoaded(true);
         setIsUpdating(false);
@@ -122,45 +111,43 @@ export default function JobSummarizer() {
   const { onJobsPage, scrapedData, dataIsLoaded, isUpdating } =
     useContentScriptData();
 
-  // Debug logging
-  useEffect(() => {
-    console.log("🎨 Popup state:", {
-      dataIsLoaded,
-      isUpdating,
-      hasData: !!scrapedData,
-    });
-  }, [dataIsLoaded, isUpdating, scrapedData]);
+  const [coverLetter, setCoverLetter] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showCoverLetter, setShowCoverLetter] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
-  function handleCoverLetterClick() {
-    chrome.tabs
-      .query({ active: true, currentWindow: true })
-      .then(async ([tab]) => {
-        if (!tab?.id) return;
+  async function handleGenerateCoverLetter() {
+    setIsGenerating(true);
+    setShowCoverLetter(true);
 
-        try {
-          // First, try to send a message to see if content script is already loaded
-          await chrome.tabs.sendMessage(tab.id, { action: "ping" });
-          // If successful, send the actual message
-          chrome.tabs.sendMessage(tab.id, { action: "start-cover-letter" });
-        } catch (error) {
-          // Content script not loaded, inject it first
-          try {
-            await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              files: ["content-scripts/content.js"], // Adjust path based on your build output
-            });
-
-            // Give it a moment to initialize, then send message
-            setTimeout(() => {
-              chrome.tabs.sendMessage(tab.id!, {
-                action: "start-cover-letter",
-              });
-            }, 100);
-          } catch (injectionError) {
-            console.error("Failed to inject content script:", injectionError);
-          }
-        }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "GENERATE_COVER_LETTER",
       });
+
+      console.log("Cover letter response:", response);
+
+      if (response?.ok && response.coverLetter) {
+        setCoverLetter(response.coverLetter);
+      } else {
+        alert(response?.error || "Failed to generate cover letter");
+        setShowCoverLetter(false);
+      }
+    } catch (error) {
+      console.error("Error generating cover letter:", error);
+      alert("Failed to generate cover letter. Check console for details.");
+      setShowCoverLetter(false);
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  function handleCopyCoverLetter() {
+    if (coverLetter) {
+      navigator.clipboard.writeText(coverLetter);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    }
   }
 
   if (!onJobsPage) {
@@ -189,7 +176,6 @@ export default function JobSummarizer() {
     );
   }
 
-  // Show loading skeleton while data is first loading
   if (!dataIsLoaded || !scrapedData) {
     return (
       <div className="extension-popup">
@@ -212,6 +198,84 @@ export default function JobSummarizer() {
   const requirements = scrapedData.requirements || [];
   const skills = scrapedData.skills || [];
 
+  // Show cover letter view if active
+  if (showCoverLetter) {
+    return (
+      <div className="extension-popup">
+        <Card className="w-full max-w-md shadow-lg border-primary/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-primary" />
+                <CardTitle className="text-base">Cover Letter</CardTitle>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowCoverLetter(false);
+                  setCoverLetter(null);
+                }}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <CardDescription className="text-xs">
+              {jobData.title} at {jobData.company}
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {isGenerating ? (
+              <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  Generating your personalized cover letter...
+                </p>
+              </div>
+            ) : coverLetter ? (
+              <>
+                <Textarea
+                  value={coverLetter}
+                  onChange={(e) => setCoverLetter(e.target.value)}
+                  className="min-h-[300px] text-xs font-mono"
+                  placeholder="Your cover letter will appear here..."
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    onClick={handleCopyCoverLetter}
+                  >
+                    {copySuccess ? (
+                      <>
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 mr-1" />
+                        Copy to Clipboard
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowCoverLetter(false)}
+                  >
+                    Back to Summary
+                  </Button>
+                </div>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Main job summary view
   return (
     <div className="extension-popup">
       <Card className="w-full max-w-md shadow-lg border-primary/20">
@@ -250,7 +314,6 @@ export default function JobSummarizer() {
             isUpdating ? "opacity-50 pointer-events-none" : ""
           }`}
         >
-          {/* <span>{jobData.description}</span> */}
           {/* Job Info */}
           <div className="space-y-2">
             <h3 className="font-semibold text-sm">{jobData.title}</h3>
@@ -327,11 +390,20 @@ export default function JobSummarizer() {
             <Button
               size="sm"
               className="flex-1"
-              onClick={handleCoverLetterClick}
-              disabled={isUpdating}
+              onClick={handleGenerateCoverLetter}
+              disabled={isUpdating || isGenerating}
             >
-              <Mail className="w-3 h-3 mr-1" />
-              Generate Cover Letter
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Mail className="w-3 h-3 mr-1" />
+                  Generate Cover Letter
+                </>
+              )}
             </Button>
             <Button size="sm" variant="outline" disabled={isUpdating}>
               <Copy className="w-3 h-3" />
@@ -346,7 +418,6 @@ export default function JobSummarizer() {
   );
 }
 
-// Loading skeleton component
 function LoadingSkeleton() {
   return (
     <>

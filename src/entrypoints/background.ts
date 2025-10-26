@@ -22,7 +22,7 @@ interface ScrapedData {
 }
 
 let latestScraped: ScrapedData | null = null;
-let isProcessing = false; // Track if AI analysis is in progress
+let isProcessing = false;
 
 export default defineBackground(() => {
   console.log('🎯 Background script initialized');
@@ -30,201 +30,162 @@ export default defineBackground(() => {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.type) {
       case 'SCRAPING_STARTED':
-        // Mark as processing
-        console.log('🔄 SCRAPING_STARTED - setting isProcessing = true');
+        console.log('🔄 SCRAPING_STARTED');
         isProcessing = true;
         
-        // Try to notify popup if it's open
         browser.runtime.sendMessage({
           type: 'SCRAPING_STARTED',
         }).catch(() => {
-          console.log('Popup not open, state stored in background');
+          console.log('Popup not open');
         });
         break;
 
       case 'GET_PROFILE': {
-        console.log("📩 GET_PROFILE received in background");
-
-        // We MUST return true now, so the port stays open
-        const respond = sendResponse;
+        console.log("📩 GET_PROFILE received");
+        
         (async () => {
           try {
-            // 1) Save test profile
-            await chrome.storage.local.set({
-              profile: {
-                firstName: 'John',
-                lastName: 'Doe',
-                email: 'john.doe@example.com',
-                phone: '555-0123',
-                linkedin: 'https://linkedin.com/in/johndoe',
-                portfolio: 'https://johndoe.com',
-                address: '123 Main St',
-                city: 'San Francisco',
-                state: 'CA',
-                zip: '94102',
-                currentCompany: 'Tech Corp',
-                currentTitle: 'Software Engineer',
-                yearsExperience: 5,
-                needsSponsorship: false,
-                willingToRelocate: true
-              }
-            });
-
-            console.log('Test profile saved');
-
             const data = await chrome.storage.local.get('profile');
-            console.log('Sending profile to content:', data);
-            respond({ ok: true, profile: data.profile });
+            console.log('Sending profile:', data.profile);
+            sendResponse({ ok: true, profile: data.profile });
           } catch (err) {
             console.error("Error in GET_PROFILE:", err);
-            // @ts-ignore
-            respond({ ok: false, error: err.toString() });
+            sendResponse({ ok: false, error: err!.toString() });
           }
         })();
-        return true;
-        }
+        return true; // Keep channel open
+      }
 
-      case 'JOB_SCRAPED_DATA':
-        // Store the scraped data
+      case 'JOB_SCRAPED_DATA': {
         const scrapedData = message.data as ScrapedData;
         console.log('📦 JOB_SCRAPED_DATA received');
 
         if (scrapedData?.jobData.description && scrapedData.jobData.description.length > 100) {
-          console.log('Starting AI analysis in background...');
+          console.log('Starting AI analysis...');
           
           analyzeJobWithAI(scrapedData.jobData)
             .then(aiResult => {
               console.log('✅ AI Result:', aiResult);
 
               if (aiResult) {
-                // Enrich the data with AI results
                 latestScraped = {
                   jobData: {
                     ...scrapedData.jobData,
                     salary: aiResult.salary || scrapedData.jobData.salary,
                     description: aiResult.cleanSummary || scrapedData.jobData.description,
                   },
-                  requirements: aiResult.requirements || scrapedData.requirements || [],
+                  requirements: aiResult.requirements || [],
                   skills: aiResult.skills || [],
                 };
               } else {
-                // AI failed, use original data
                 latestScraped = scrapedData;
               }
 
-              // Mark as done processing
               isProcessing = false;
 
-              // Relay enriched data to popup
               browser.runtime.sendMessage({
                 type: 'RELAYED_JOB_SCRAPED_DATA',
                 data: latestScraped,
-              }).catch(() => {
-                console.log('Popup not open, data stored in background');
-              });
+              }).catch(() => console.log('Popup not open'));
             })
             .catch(err => {
               console.error('AI analysis error:', err);
-              // Use original data on error
               latestScraped = scrapedData;
               isProcessing = false;
               
               browser.runtime.sendMessage({
                 type: 'RELAYED_JOB_SCRAPED_DATA',
                 data: latestScraped,
-              }).catch(() => {
-                console.log('Popup not open, data stored in background');
-              });
+              }).catch(() => console.log('Popup not open'));
             });
         } else {
-          // No description or too short, skip AI
-          console.log('Skipping AI analysis (no description)');
+          console.log('Skipping AI (no description)');
           latestScraped = scrapedData;
           isProcessing = false;
           
           browser.runtime.sendMessage({
             type: 'RELAYED_JOB_SCRAPED_DATA',
             data: latestScraped,
-          }).catch(() => {
-            console.log('Popup not open, data stored in background');
-          });
+          }).catch(() => console.log('Popup not open'));
         }
         break;
+      }
       
-      case 'GENERATE_COVER':
-          const scrapedDataCover = message.data as ScrapedData;
-
-        if (scrapedDataCover?.jobData.description && scrapedDataCover.jobData.description.length > 100) {
-          console.log('Starting AI analysis in background...');
-          
-          analyzeJobWithAI(scrapedDataCover.jobData)
-            .then(aiResult => {
-              console.log('AI Result:', latestScraped);
-
-              if (latestScraped) {
-                // Enrich the data with AI results
-                latestScraped = {
-                  jobData: {
-                    ...scrapedData.jobData,
-                    salary: aiResult.salary || scrapedData.jobData.salary,
-                    description: aiResult.cleanSummary || scrapedData.jobData.description,
-                  },
-                  requirements: aiResult.requirements || scrapedData.requirements || [],
-                  skills: aiResult.skills || [],
-                };
-              } else {
-                // AI failed, use original data
-                latestScraped = scrapedData;
-              }
-
-              // Mark as done processing
-              isProcessing = false;
-
-              // Relay enriched data to popup
-              browser.runtime.sendMessage({
-                type: 'RELAYED_JOB_SCRAPED_DATA',
-                data: latestScraped,
-              }).catch(() => {
-                console.log('Popup not open, data stored in background');
+      case 'GENERATE_COVER_LETTER': {
+        console.log('📝 GENERATE_COVER_LETTER request received');
+        
+        (async () => {
+          try {
+            // Get user profile
+            const { profile } = await chrome.storage.local.get('profile');
+            
+            if (!profile) {
+              sendResponse({ 
+                ok: false, 
+                error: 'No profile found. Please set up your profile first.' 
               });
-            })
-            .catch(err => {
-              console.error('AI analysis error:', err);
-              // Use original data on error
-              latestScraped = scrapedData;
-              isProcessing = false;
-              
-              browser.runtime.sendMessage({
-                type: 'RELAYED_COVER_LETTER',
-                data: latestScraped,
-              }).catch(() => {
-                console.log('Popup not open, data stored in background');
+              return;
+            }
+
+            // Use latest scraped data
+            if (!latestScraped) {
+              sendResponse({ 
+                ok: false, 
+                error: 'No job data available. Please open a job posting first.' 
               });
+              return;
+            }
+
+            console.log('Generating cover letter with:', {
+              job: latestScraped.jobData.title,
+              user: profile.firstName
             });
-        } else {
-          // No description or too short, skip AI
-          console.log('Skipping AI analysis (no description)');
-          latestScraped = scrapedDataCover;
-          isProcessing = false;
-          
-          browser.runtime.sendMessage({
-            type: 'RELAYED_COVER_LETTER',
-            data: latestScraped,
-          }).catch(() => {
-            console.log('Popup not open, data stored in background');
-          });
-        }
-        break;
 
-      case 'PROFILE_SCRAPED_DATA':
-        console.log('Background receiving content script call');
-        break;
+            // Generate the cover letter
+            const coverLetter = await generateCoverLetter(
+              latestScraped.jobData,
+              latestScraped,
+              {
+                name: `${profile.firstName} ${profile.lastName}`,
+                email: profile.email,
+                phone: profile.phone,
+                currentRole: profile.currentTitle,
+                yearsExperience: profile.yearsExperience?.toString(),
+                skills: [], // You can add skills to profile if needed
+                achievements: []
+              }
+            );
+
+            if (!coverLetter) {
+              sendResponse({ 
+                ok: false, 
+                error: 'Failed to generate cover letter. AI may not be available.' 
+              });
+              return;
+            }
+
+            console.log('✅ Cover letter generated successfully');
+            sendResponse({ 
+              ok: true, 
+              coverLetter: coverLetter 
+            });
+
+          } catch (err) {
+            console.error('Cover letter generation error:', err);
+            sendResponse({ 
+              ok: false, 
+              error: err!.toString() 
+            });
+          }
+        })();
+        
+        return true; // Keep channel open for async response
+      }
 
       case 'GET_LATEST_JOB_SCRAPED':
-        // Popup requesting stored data and processing state
         console.log('Sending data to popup:', { hasData: !!latestScraped, isProcessing });
         sendResponse({ data: latestScraped, isProcessing });
-        return true; // Keep channel open for async
+        return true;
 
       default:
         break;

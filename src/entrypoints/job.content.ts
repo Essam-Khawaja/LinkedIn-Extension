@@ -8,8 +8,6 @@ export default defineContentScript({
   runAt: 'document_idle',
   main: () => {
     console.log("🚀 LinkedIn job scraper running...");
-    console.log("📍 Current URL:", window.location.href);
-    console.log("📍 Page title:", document.title);
 
     let lastJobId: string | null = null;
     let isProcessing = false;
@@ -41,7 +39,7 @@ export default defineContentScript({
       // Description
       let description = '';
       const oldSelector = document.querySelector('.jobs-description__content');
-        description = oldSelector?.textContent.trim() || '';
+      description = oldSelector?.textContent.trim() || '';
       
       // Salary extraction
       const salaryPatterns = [
@@ -57,11 +55,6 @@ export default defineContentScript({
         }
       }
 
-      // Experience level
-      const experiencePattern = /(\d+)\+?\s*years?\s+(?:of\s+)?experience/gi;
-      const expMatch = description.match(experiencePattern);
-      const experience = expMatch ? expMatch[0] : '';
-
       // Unique job ID
       const jobId = `${company}-${title}`;
       return {
@@ -73,7 +66,6 @@ export default defineContentScript({
         applicants,
         types: typeBadges.join(', '),
         salary,
-        experience,
         description,
       };
     }
@@ -90,16 +82,8 @@ export default defineContentScript({
       const hasValidData = rawJobData.company && rawJobData.title && rawJobData.description && rawJobData.description.length > 100;
       const isNewJob = rawJobData.jobId !== lastJobId;
 
-      // console.log('🔍 Check results:', {
-      //   jobId: rawJobData.jobId,
-      //   lastJobId: lastJobId,
-      //   hasValidData,
-      //   isNewJob,
-      //   descLength: rawJobData.description?.length || 0
-      // });
-
       if (!hasValidData) {
-        console.log('⏳ Incomplete data, waiting for page to load...');
+        console.log('⏳ Incomplete data, waiting...');
         return;
       }
 
@@ -108,20 +92,18 @@ export default defineContentScript({
         return;
       }
 
-      // New job detected - start processing
-      console.log('New job detected:', rawJobData.jobId);
+      // New job detected
+      console.log('✅ New job detected:', rawJobData.jobId);
       isProcessing = true;
 
-      // Send loading state FIRST
-      // console.log('Sending SCRAPING_STARTED');
+      // Send loading state
       browser.runtime.sendMessage({
         type: 'SCRAPING_STARTED'
       }).catch(err => console.log('Popup may not be open'));
 
-      // Small delay to ensure loading state is processed
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Create the data structure that background/popup expects
+      // Create structured data
       const structuredData = {
         jobData: {
           title: rawJobData.title,
@@ -136,42 +118,24 @@ export default defineContentScript({
         skills: [],
       };
 
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.action === "start-cover-letter") {
-        // Send actual data
-        browser.runtime.sendMessage({
-          type: 'GENERATE_COVER',
-          data: structuredData,
-        }).then(() => {
-          console.log('Data sent to background successfully');
-        }).catch((err) => {
-          console.error('Failed to send data:', err);
-        }).finally(() => {
-          lastJobId = rawJobData.jobId;
-          isProcessing = false;
-        });
-    }
-  });
-
-      // Send actual data
+      // Send to background for AI analysis
       browser.runtime.sendMessage({
         type: 'JOB_SCRAPED_DATA',
         data: structuredData,
       }).then(() => {
-        console.log('Data sent to background successfully');
+        console.log('✅ Data sent to background');
       }).catch((err) => {
-        console.error('Failed to send data:', err);
+        console.error('❌ Failed to send data:', err);
       }).finally(() => {
-        // ALWAYS update lastJobId after processing, regardless of success
         lastJobId = rawJobData.jobId;
         isProcessing = false;
       });
     }
 
-    // Initial scrape with delay
+    // Initial scrape
     setTimeout(checkAndSendData, 1500);
 
-    // Observe for job changes with debounce
+    // Observe for changes
     let debounceTimer: any;
     const observer = new MutationObserver(() => {
       clearTimeout(debounceTimer);
