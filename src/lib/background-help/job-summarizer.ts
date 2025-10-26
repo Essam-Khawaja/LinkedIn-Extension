@@ -115,13 +115,13 @@ ${userProfile?.name || '[Your Name]'}
 Return ONLY the cover letter text, no additional commentary.`;
 
     const result = await session.prompt(prompt);
-    console.log("📝 Generated cover letter");
+    console.log("Generated cover letter");
 
     session.destroy();
     return result.trim();
 
   } catch (err) {
-    console.error("❌ Cover letter generation error:", err);
+    console.error("Cover letter generation error:", err);
     return null;
   }
 }

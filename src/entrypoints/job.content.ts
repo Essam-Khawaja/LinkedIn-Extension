@@ -90,13 +90,13 @@ export default defineContentScript({
       const hasValidData = rawJobData.company && rawJobData.title && rawJobData.description && rawJobData.description.length > 100;
       const isNewJob = rawJobData.jobId !== lastJobId;
 
-      console.log('🔍 Check results:', {
-        jobId: rawJobData.jobId,
-        lastJobId: lastJobId,
-        hasValidData,
-        isNewJob,
-        descLength: rawJobData.description?.length || 0
-      });
+      // console.log('🔍 Check results:', {
+      //   jobId: rawJobData.jobId,
+      //   lastJobId: lastJobId,
+      //   hasValidData,
+      //   isNewJob,
+      //   descLength: rawJobData.description?.length || 0
+      // });
 
       if (!hasValidData) {
         console.log('⏳ Incomplete data, waiting for page to load...');
@@ -109,11 +109,11 @@ export default defineContentScript({
       }
 
       // New job detected - start processing
-      console.log('📊 New job detected:', rawJobData.jobId);
+      console.log('New job detected:', rawJobData.jobId);
       isProcessing = true;
 
       // Send loading state FIRST
-      console.log('🔄 Sending SCRAPING_STARTED');
+      // console.log('Sending SCRAPING_STARTED');
       browser.runtime.sendMessage({
         type: 'SCRAPING_STARTED'
       }).catch(err => console.log('Popup may not be open'));
@@ -136,14 +136,31 @@ export default defineContentScript({
         skills: [],
       };
 
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.action === "start-cover-letter") {
+        // Send actual data
+        browser.runtime.sendMessage({
+          type: 'GENERATE_COVER',
+          data: structuredData,
+        }).then(() => {
+          console.log('Data sent to background successfully');
+        }).catch((err) => {
+          console.error('Failed to send data:', err);
+        }).finally(() => {
+          lastJobId = rawJobData.jobId;
+          isProcessing = false;
+        });
+    }
+  });
+
       // Send actual data
       browser.runtime.sendMessage({
         type: 'JOB_SCRAPED_DATA',
         data: structuredData,
       }).then(() => {
-        console.log('✅ Data sent to background successfully');
+        console.log('Data sent to background successfully');
       }).catch((err) => {
-        console.error('❌ Failed to send data:', err);
+        console.error('Failed to send data:', err);
       }).finally(() => {
         // ALWAYS update lastJobId after processing, regardless of success
         lastJobId = rawJobData.jobId;

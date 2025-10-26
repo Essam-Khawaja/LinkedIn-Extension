@@ -92,15 +92,15 @@ export function useContentScriptData() {
 
     // Also listen for messages in case popup is already open when job changes
     const handleMessage = (message: any) => {
-      console.log("📨 Popup received message:", message.type);
+      console.log("Popup received message:", message.type);
 
       if (message?.type === "SCRAPING_STARTED") {
-        console.log("🔄 Setting isUpdating to TRUE");
+        console.log("Setting isUpdating to TRUE");
         setIsUpdating(true);
       }
 
       if (message?.type === "RELAYED_JOB_SCRAPED_DATA" && message.data) {
-        console.log("✅ Received new data");
+        console.log("Received new data");
         setScrapedData(message.data);
         setDataIsLoaded(true);
         setIsUpdating(false);
@@ -130,6 +130,38 @@ export default function JobSummarizer() {
       hasData: !!scrapedData,
     });
   }, [dataIsLoaded, isUpdating, scrapedData]);
+
+  function handleCoverLetterClick() {
+    chrome.tabs
+      .query({ active: true, currentWindow: true })
+      .then(async ([tab]) => {
+        if (!tab?.id) return;
+
+        try {
+          // First, try to send a message to see if content script is already loaded
+          await chrome.tabs.sendMessage(tab.id, { action: "ping" });
+          // If successful, send the actual message
+          chrome.tabs.sendMessage(tab.id, { action: "start-cover-letter" });
+        } catch (error) {
+          // Content script not loaded, inject it first
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ["content-scripts/content.js"], // Adjust path based on your build output
+            });
+
+            // Give it a moment to initialize, then send message
+            setTimeout(() => {
+              chrome.tabs.sendMessage(tab.id!, {
+                action: "start-cover-letter",
+              });
+            }, 100);
+          } catch (injectionError) {
+            console.error("Failed to inject content script:", injectionError);
+          }
+        }
+      });
+  }
 
   if (!onJobsPage) {
     return (
@@ -292,7 +324,12 @@ export default function JobSummarizer() {
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
-            <Button size="sm" className="flex-1" disabled={isUpdating}>
+            <Button
+              size="sm"
+              className="flex-1"
+              onClick={handleCoverLetterClick}
+              disabled={isUpdating}
+            >
               <Mail className="w-3 h-3 mr-1" />
               Generate Cover Letter
             </Button>

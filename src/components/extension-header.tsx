@@ -51,7 +51,7 @@ export function ExtensionHeader({
       </div>
 
       {/* XP Progress Bar */}
-      <div className="flex flex-col gap-2">
+      {/* <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-success" />
@@ -69,7 +69,7 @@ export function ExtensionHeader({
             style={{ width: `${xpPercentage}%` }}
           />
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }

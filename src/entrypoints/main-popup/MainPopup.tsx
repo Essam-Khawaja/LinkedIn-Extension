@@ -53,8 +53,7 @@ export default function MainPopup() {
 
       {/* Main Content */}
       <div className="flex flex-col gap-6 p-4 ">
-        {/* Active Quests Section */}
-        <Card className="border-border bg-card">
+        {/* <Card className="border-border bg-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
@@ -96,7 +95,7 @@ export default function MainPopup() {
               />
             </Link>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Quick Actions */}
         <div className="flex flex-col gap-3">
@@ -137,7 +136,7 @@ export default function MainPopup() {
         </div>
 
         {/* AI Tools Teaser */}
-        <Link to="/ai-tools">
+        {/* <Link to="/ai-tools">
           <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-secondary/10 hover:border-primary/50 transition-colors cursor-pointer">
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -154,7 +153,7 @@ export default function MainPopup() {
               <div className="text-primary text-sm font-medium">Explore →</div>
             </CardContent>
           </Card>
-        </Link>
+        </Link> */}
       </div>
     </div>
   );

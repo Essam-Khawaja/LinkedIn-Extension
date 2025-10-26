@@ -6,18 +6,18 @@ export default defineContentScript({
   
   async main() {
     console.log('Auto-fill script loaded');
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "start-auto-fill") {
-    console.log("Received auto-fill request");
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.action === "start-auto-fill") {
+        console.log("Received auto-fill request");
 
-    chrome.runtime.sendMessage({ type: "GET_PROFILE" }, (response) => {
-  if (chrome.runtime.lastError) {
-    console.error("❌ Background error:", chrome.runtime.lastError);
-    return;
-  }
-  console.log("✅ Got profile:", response);
-  handleAutoFillClick(response.profile)
-});
+        chrome.runtime.sendMessage({ type: "GET_PROFILE" }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error("Background error:", chrome.runtime.lastError);
+        return;
+      }
+      console.log("✅ Got profile:", response);
+      handleAutoFillClick(response.profile)
+    });
     }
   });
   }
@@ -46,7 +46,7 @@ async function handleAutoFillClick(profile: any) {
     const result = await autoFillForm(profile);
     
     // Show success
-    // showSuccessMessage(result.filled, result.aiAnswered);
+    showSuccessMessage(result.filled, result.aiAnswered);
     
   } catch (error) {
     console.error('Auto-fill error:', error);
