@@ -1,0 +1,217 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  FileText,
+  PenLine,
+  Bot,
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
+import type { HomeState, ProfileStatus } from "@/entrypoints/main-popup/temp";
+import { Link } from "react-router-dom";
+
+interface HomeTabProps {
+  state: HomeState;
+  profileStatus: ProfileStatus;
+  onStateChange: (state: HomeState) => void;
+  onTabChange: (tab: string) => void;
+}
+
+export function HomeTab({
+  state,
+  profileStatus,
+  onStateChange,
+  onTabChange,
+}: HomeTabProps) {
+  if (state === "first-time") {
+    return (
+      <div className="space-y-4">
+        <div className="text-center space-y-2 py-4">
+          <div className="text-4xl mb-2">👋</div>
+          <h2 className="text-xl font-semibold text-foreground">
+            Welcome to SwiftApply!
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Get started by setting up your profile
+          </p>
+        </div>
+
+        <Button
+          className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground"
+          onClick={() => onTabChange("profile")}
+        >
+          <span className="mr-2">⚙️</span>
+          Set Up Profile
+        </Button>
+
+        <Card className="p-4 bg-card border-border">
+          <h3 className="font-medium mb-3 text-card-foreground">
+            What you'll be able to do:
+          </h3>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+              Get AI-powered job summaries
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+              Generate personalized cover letters
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+              Auto-fill applications instantly
+            </li>
+          </ul>
+        </Card>
+
+        <p className="text-center text-xs text-muted-foreground">
+          Takes less than 2 minutes! ⚡
+        </p>
+      </div>
+    );
+  }
+
+  if (state === "not-on-job") {
+    return (
+      <div className="space-y-4">
+        <div className="text-center space-y-2 py-4">
+          <div className="text-4xl mb-2">🎯</div>
+          <h2 className="text-xl font-semibold text-foreground">SwiftApply</h2>
+          <p className="text-sm text-muted-foreground">
+            Ready to help you apply faster!
+          </p>
+        </div>
+
+        <Button
+          className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground"
+          onClick={() => window.open("https://www.linkedin.com/jobs", "_blank")}
+        >
+          <span className="mr-2">🔍</span>
+          Go to LinkedIn Jobs
+          <ExternalLink className="ml-2 h-4 w-4" />
+        </Button>
+
+        <Card className="p-4 bg-card border-border">
+          <h3 className="font-medium mb-3 text-card-foreground">Features</h3>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+              Get AI summaries
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+              Generate cover letters
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+              Auto-fill applications
+            </li>
+          </ul>
+        </Card>
+
+        <div className="flex items-center justify-center gap-2 text-sm">
+          <span className="text-muted-foreground">Profile:</span>
+          {profileStatus === "complete" ? (
+            <Badge
+              variant="outline"
+              className="bg-success/10 text-success border-success/20"
+            >
+              <CheckCircle2 className="mr-1 h-4 w-4 flex-shrink-0" />
+              Complete
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="bg-warning/10 text-warning border-warning/20"
+            >
+              <AlertCircle className="mr-1 h-4 w-4 flex-shrink-0" />
+              Setup needed
+            </Badge>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // job-detected state
+  return (
+    <div className="space-y-4">
+      <Card className="p-4 bg-card border-border">
+        <div className="space-y-1">
+          <h3 className="font-semibold text-card-foreground text-balance">
+            Senior Frontend Engineer
+          </h3>
+          <p className="text-sm text-muted-foreground">Vercel Inc.</p>
+        </div>
+      </Card>
+
+      <div className="space-y-2">
+        <Button
+          variant="outline"
+          className="w-full h-12 justify-start text-left hover:bg-secondary bg-transparent text-foreground"
+        >
+          <Link to={"/job-summarizer"}>
+            <FileText className="mr-3 h-5 w-5 text-primary flex-shrink-0" />
+            <span className="flex-1">Find a Job</span>
+          </Link>
+        </Button>
+
+        {/* <Button
+          variant="outline"
+          className="w-full h-12 justify-start text-left hover:bg-secondary bg-transparent text-foreground"
+        >
+          <PenLine className="mr-3 h-5 w-5 text-accent flex-shrink-0" />
+          <span className="flex-1">Generate Cover Letter</span>
+        </Button> */}
+
+        <Button className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground justify-start">
+          <Link to={"/auto-apply"}>
+            <Bot className="mr-3 h-5 w-5 flex-shrink-0" />
+            <span className="flex-1">Auto-Fill Application</span>
+          </Link>
+        </Button>
+      </div>
+
+      <div className="flex items-center justify-between pt-2">
+        <Badge
+          variant="outline"
+          className="bg-success/10 text-success border-success/20"
+        >
+          <CheckCircle2 className="mr-1 h-4 w-4 flex-shrink-0" />
+          Ready
+        </Badge>
+        <span className="text-xs text-muted-foreground">
+          5 applications this week
+        </span>
+      </div>
+
+      <Card className="p-3 bg-muted/50 border-border">
+        <h4 className="text-xs font-medium text-foreground mb-2">
+          Recent Applications
+        </h4>
+        <div className="space-y-2">
+          {[
+            { title: "Product Designer", company: "Stripe", status: "pending" },
+            { title: "UX Engineer", company: "Linear", status: "viewed" },
+          ].map((app, i) => (
+            <div key={i} className="flex items-center justify-between text-xs">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground truncate">
+                  {app.title}
+                </p>
+                <p className="text-muted-foreground">{app.company}</p>
+              </div>
+              <Badge variant="secondary" className="text-xs">
+                {app.status}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
