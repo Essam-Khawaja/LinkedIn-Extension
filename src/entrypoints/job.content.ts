@@ -7,7 +7,7 @@ export default defineContentScript({
   matches: ['*://*.linkedin.com/jobs/*'],
   runAt: 'document_idle',
   main: () => {
-    console.log("🚀 LinkedIn job scraper running...");
+    console.log("LinkedIn job scraper running...");
 
     let lastJobId: string | null = null;
     let isProcessing = false;
@@ -72,7 +72,7 @@ export default defineContentScript({
 
     async function checkAndSendData() {
       if (isProcessing) {
-        console.log('⏸️ Already processing, skipping...');
+        console.log('⏸Already processing, skipping...');
         return;
       }
       
@@ -83,17 +83,17 @@ export default defineContentScript({
       const isNewJob = rawJobData.jobId !== lastJobId;
 
       if (!hasValidData) {
-        console.log('⏳ Incomplete data, waiting...');
+        console.log('Incomplete data, waiting...');
         return;
       }
 
       if (!isNewJob) {
-        console.log('🔄 Same job, no update needed');
+        console.log('Same job, no update needed');
         return;
       }
 
       // New job detected
-      console.log('✅ New job detected:', rawJobData.jobId);
+      console.log('New job detected:', rawJobData.jobId);
       isProcessing = true;
 
       // Send loading state
@@ -123,9 +123,9 @@ export default defineContentScript({
         type: 'JOB_SCRAPED_DATA',
         data: structuredData,
       }).then(() => {
-        console.log('✅ Data sent to background');
+        console.log('Data sent to background');
       }).catch((err) => {
-        console.error('❌ Failed to send data:', err);
+        console.error('Failed to send data:', err);
       }).finally(() => {
         lastJobId = rawJobData.jobId;
         isProcessing = false;

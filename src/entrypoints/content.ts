@@ -15,7 +15,7 @@ export default defineContentScript({
         console.error("Background error:", chrome.runtime.lastError);
         return;
       }
-      console.log("✅ Got profile:", response);
+      console.log("Got profile:", response);
       handleAutoFillClick(response.profile)
     });
     }
@@ -24,24 +24,7 @@ export default defineContentScript({
 });
 
 async function handleAutoFillClick(profile: any) {
-  // const button = document.getElementById('job-copilot-autofill-btn');
-  // if (!button) return;
-  
-  try {
-    // Show loading state
-    // button.textContent = '⏳ Filling...';
-    // button.style.pointerEvents = 'none';
-    
-    // Get user profile
-    // let profile;
-    // chrome.runtime.sendMessage({ action: "GET_PROFILE" }, (response) => {
-    //     profile = response?.profile;
-    // });    
-    // if (!profile) {
-    //   alert('Please set up your profile first in the extension popup!');
-    //   return;
-    // }
-    
+  try {    
     // Do the auto-fill
     const result = await autoFillForm(profile);
     
@@ -51,12 +34,6 @@ async function handleAutoFillClick(profile: any) {
   } catch (error) {
     console.error('Auto-fill error:', error);
     alert('Something went wrong. Please try again.');
-  } finally {
-    // Reset button
-    // if (button) {
-    //   button.textContent = '🤖 Auto-fill Application';
-    //   button.style.pointerEvents = 'auto';
-    // }
   }
 }
 
@@ -90,10 +67,6 @@ function showSuccessMessage(filledCount: number, aiCount: number) {
   
   setTimeout(() => notification.remove(), 3000);
 }
-
-// ============================================
-// FIELD DETECTION
-// ============================================
 
 interface FieldInfo {
   element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
@@ -259,10 +232,6 @@ function isFieldRequired(field: HTMLElement, label: string): boolean {
   if (label.toLowerCase().includes('required')) return true;
   return false;
 }
-
-// ============================================
-// FORM FILLING
-// ============================================
 
 async function autoFillForm(profile: UserProfile) {
   const fields = getAllFields();
@@ -438,10 +407,6 @@ function triggerInputEvents(element: HTMLElement) {
   }
 }
 
-// ============================================
-// AI INTEGRATION
-// ============================================
-
 function extractJobContext() {
   const title = 
     document.querySelector('h1')?.textContent ||
@@ -477,22 +442,16 @@ Candidate Background:
 Provide only the answer, no preamble or explanation:`;
 
   try {
-    // @ts-ignore - Chrome AI API
-    // if (!window.ai?.languageModel) {
-    //   console.warn('Chrome AI not available');
-    //   return null;
-    // }
-
     // @ts-ignore
     const availability = await LanguageModel.availability();
 
     if (availability === 'no') {
-      console.warn("❌ Gemini Nano not available");
+      console.warn("Gemini Nano not available");
       return null;
     }
 
     if (availability === 'after-download') {
-      console.log("⏳ Triggering Gemini Nano download...");
+      console.log("Triggering Gemini Nano download...");
       // @ts-ignore
       await LanguageModel.create();
       return null;
@@ -502,27 +461,12 @@ Provide only the answer, no preamble or explanation:`;
     const session = await LanguageModel.create();
 
     const result = await session.prompt(prompt);
-    console.log("🤖 Raw AI Response:", result);
+    console.log("Raw AI Response:", result);
 
       let cleanedResult = result.trim();
     
-    // // Remove ```json and ``` if present
-    // if (cleanedResult.startsWith('```json')) {
-    //   cleanedResult = cleanedResult.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    // } else if (cleanedResult.startsWith('```')) {
-    //   cleanedResult = cleanedResult.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    // }
-    
-    // const parsed = JSON.parse(cleanedResult);
-    
     session.destroy();
     return cleanedResult;
-
-    
-    // @ts-ignore
-    // const session = await window.ai.languageModel.create();
-    // const answer = await session.prompt(prompt);
-    // return answer.trim();
   } catch (error) {
     console.error('AI answering failed:', error);
     return null;

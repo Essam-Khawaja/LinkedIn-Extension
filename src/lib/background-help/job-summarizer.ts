@@ -40,12 +40,12 @@ async function generateCoverLetter(
     const availability = await LanguageModel.availability();
 
     if (availability === 'no') {
-      console.warn("❌ Gemini Nano not available");
+      console.warn("Gemini Nano not available");
       return null;
     }
 
     if (availability === 'after-download') {
-      console.log("⏳ Triggering Gemini Nano download...");
+      console.log("Triggering Gemini Nano download...");
       // @ts-ignore
       await LanguageModel.create();
       return null;
@@ -130,15 +130,15 @@ async function analyzeJobWithAI(jobData: any) {
   try {
     // @ts-ignore
     const availability = await LanguageModel.availability();
-    console.log('✨ AI Availability:', availability);
+    console.log('AI Availability:', availability);
 
     if (availability === 'no') {
-      console.warn("❌ Gemini Nano not available");
+      console.warn("Gemini Nano not available");
       return null;
     }
 
     if (availability === 'after-download') {
-      console.log("⏳ Triggering Gemini Nano download...");
+      console.log("Triggering Gemini Nano download...");
       // @ts-ignore
       await LanguageModel.create();
       return null;
@@ -208,7 +208,7 @@ Example format:
 Return ONLY valid JSON matching this structure.`;
 
     const result = await session.prompt(prompt, {responseConstraint: schema});
-    console.log("🤖 Raw AI Response:", result);
+    console.log("Raw AI Response:", result);
 
       let cleanedResult = result.trim();
     

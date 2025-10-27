@@ -25,12 +25,12 @@ let latestScraped: ScrapedData | null = null;
 let isProcessing = false;
 
 export default defineBackground(() => {
-  console.log('🎯 Background script initialized');
+  console.log('Background script initialized');
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.type) {
       case 'SCRAPING_STARTED':
-        console.log('🔄 SCRAPING_STARTED');
+        console.log('SCRAPING_STARTED');
         isProcessing = true;
         
         browser.runtime.sendMessage({
@@ -41,7 +41,7 @@ export default defineBackground(() => {
         break;
 
       case 'GET_PROFILE': {
-        console.log("📩 GET_PROFILE received");
+        console.log("GET_PROFILE received");
         
         (async () => {
           try {
@@ -65,7 +65,7 @@ export default defineBackground(() => {
           
           analyzeJobWithAI(scrapedData.jobData)
             .then(aiResult => {
-              console.log('✅ AI Result:', aiResult);
+              console.log('AI Result:', aiResult);
 
               if (aiResult) {
                 latestScraped = {
@@ -112,7 +112,7 @@ export default defineBackground(() => {
       }
       
       case 'GENERATE_COVER_LETTER': {
-        console.log('📝 GENERATE_COVER_LETTER request received');
+        console.log('GENERATE_COVER_LETTER request received');
         
         (async () => {
           try {
@@ -164,7 +164,7 @@ export default defineBackground(() => {
               return;
             }
 
-            console.log('✅ Cover letter generated successfully');
+            console.log('Cover letter generated successfully');
             sendResponse({ 
               ok: true, 
               coverLetter: coverLetter 
