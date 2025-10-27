@@ -17,14 +17,9 @@ export function ExtensionPopup() {
   const [homeState, setHomeState] = useState<HomeState>("job-detected");
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>("complete");
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    document.documentElement.classList.toggle("dark");
-  };
-
   return (
-    <div className={darkMode ? "dark" : ""}>
-      <div className="w-[400px] bg-background border border-border rounded-xl shadow-2xl overflow-hidden">
+    <div className="dark extension-popup">
+      <div className="bg-background overflow-hidden">
         {/* Header */}
         <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -34,18 +29,6 @@ export function ExtensionPopup() {
             <h1 className="font-semibold text-card-foreground">SwiftApply</h1>
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={toggleDarkMode}
-            >
-              {darkMode ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
-            </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <Settings className="h-4 w-4" />
             </Button>

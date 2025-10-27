@@ -152,7 +152,7 @@ export default function JobSummarizer() {
 
   if (!onJobsPage) {
     return (
-      <div className="extension-popup">
+      <div className="extension-popup dark bg-black">
         <Card className="w-full max-w-md">
           <CardContent className="p-4">
             <h1 className="text-3xl text-center font-bold p-4">
@@ -178,7 +178,7 @@ export default function JobSummarizer() {
 
   if (!dataIsLoaded || !scrapedData) {
     return (
-      <div className="extension-popup">
+      <div className="extension-popup dark bg-black">
         <Card className="w-full max-w-md shadow-lg border-primary/20">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
@@ -201,7 +201,7 @@ export default function JobSummarizer() {
   // Show cover letter view if active
   if (showCoverLetter) {
     return (
-      <div className="extension-popup">
+      <div className="extension-popup dark bg-black">
         <Card className="w-full max-w-md shadow-lg border-primary/20">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -277,7 +277,7 @@ export default function JobSummarizer() {
 
   // Main job summary view
   return (
-    <div className="extension-popup">
+    <div className="extension-popup dark bg-black">
       <Card className="w-full max-w-md shadow-lg border-primary/20">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">

@@ -11,7 +11,10 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import type { HomeState, ProfileStatus } from "@/entrypoints/main-popup/temp";
+import type {
+  HomeState,
+  ProfileStatus,
+} from "@/entrypoints/main-popup/NewPopup";
 import { Link } from "react-router-dom";
 
 interface HomeTabProps {
@@ -27,6 +30,36 @@ export function HomeTab({
   onStateChange,
   onTabChange,
 }: HomeTabProps) {
+  function handleApplyClick() {
+    chrome.tabs
+      .query({ active: true, currentWindow: true })
+      .then(async ([tab]) => {
+        if (!tab?.id) return;
+
+        try {
+          // First, try to send a message to see if content script is already loaded
+          await chrome.tabs.sendMessage(tab.id, { action: "ping" });
+          // If successful, send the actual message
+          chrome.tabs.sendMessage(tab.id, { action: "start-auto-fill" });
+        } catch (error) {
+          // Content script not loaded, inject it first
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ["content-scripts/content.js"], // Adjust path based on your build output
+            });
+
+            // Give it a moment to initialize, then send message
+            setTimeout(() => {
+              chrome.tabs.sendMessage(tab.id!, { action: "start-auto-fill" });
+            }, 100);
+          } catch (injectionError) {
+            console.error("Failed to inject content script:", injectionError);
+          }
+        }
+      });
+  }
+
   if (state === "first-time") {
     return (
       <div className="space-y-4">
@@ -154,7 +187,10 @@ export function HomeTab({
           variant="outline"
           className="w-full h-12 justify-start text-left hover:bg-secondary bg-transparent text-foreground"
         >
-          <Link to={"/job-summarizer"}>
+          <Link
+            to={"/job-summarizer"}
+            className="h-full w-full flex justify-start items-center"
+          >
             <FileText className="mr-3 h-5 w-5 text-primary flex-shrink-0" />
             <span className="flex-1">Find a Job</span>
           </Link>
@@ -168,8 +204,14 @@ export function HomeTab({
           <span className="flex-1">Generate Cover Letter</span>
         </Button> */}
 
-        <Button className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground justify-start">
-          <Link to={"/auto-apply"}>
+        <Button
+          onClick={handleApplyClick}
+          className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground justify-start"
+        >
+          <Link
+            to={"/auto-apply"}
+            className="h-full w-full flex justify-start items-center"
+          >
             <Bot className="mr-3 h-5 w-5 flex-shrink-0" />
             <span className="flex-1">Auto-Fill Application</span>
           </Link>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import MainPopup from "../main-popup/MainPopup";
 import RoutePopup from "../route-popup/RoutePopup";
 import checkPage from "@/lib/checkPage";
+import { ExtensionPopup } from "../main-popup/NewPopup";
 
 function PopupApp() {
   const [onLinkedIn, setOnLinkedIn] = useState<boolean | null>(null);
@@ -25,7 +26,11 @@ function PopupApp() {
   //   return <RoutePopup />;
   // }
 
-  return <MainPopup />;
+  return (
+    <div>
+      <ExtensionPopup />
+    </div>
+  );
 }
 
 export default PopupApp;
