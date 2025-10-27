@@ -1,3 +1,4 @@
+import UserProfile from '@/lib/types/user';
 import { analyzeJobWithAI, generateCoverLetter } from '../lib/background-help/job-summarizer'
 
 interface Skill {
@@ -109,6 +110,36 @@ export default defineBackground(() => {
           }).catch(() => console.log('Popup not open'));
         }
         break;
+      }
+
+      case 'SAVE_PROFILE': {
+        console.log("SAVE_PROFILE received");
+        
+        (async () => {
+          try {
+            const profileData = message.data as UserProfile;
+            
+            // Validate required fields
+            if (!profileData.firstName || !profileData.lastName || !profileData.email) {
+              sendResponse({ 
+                ok: false, 
+                error: 'Missing required fields: First Name, Last Name, Email' 
+              });
+              return;
+            }
+
+            // Save to chrome.storage
+            await chrome.storage.local.set({ profile: profileData });
+            
+            console.log('Profile saved successfully');
+            
+            sendResponse({ ok: true });
+          } catch (err) {
+            console.error("Error in SAVE_PROFILE:", err);
+            sendResponse({ ok: false, error: err!.toString() });
+          }
+        })();
+        return true;
       }
       
       case 'GENERATE_COVER_LETTER': {
