@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Moon, Sun, Settings } from "lucide-react";
 import { HomeTab } from "@/components/tabs/home-tab";
 import { ToolsTab } from "@/components/tabs/tools-tab";
 import { ProfileTab } from "@/components/tabs/profile-tab";
+import UserProfile from "@/lib/types/user";
 
 export type HomeState = "job-detected" | "not-on-job" | "first-time";
 export type ProfileStatus = "complete" | "incomplete";
@@ -14,8 +15,73 @@ export type ProfileStatus = "complete" | "incomplete";
 export function ExtensionPopup() {
   const [darkMode, setDarkMode] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
-  const [homeState, setHomeState] = useState<HomeState>("job-detected");
-  const [profileStatus, setProfileStatus] = useState<ProfileStatus>("complete");
+  const [homeState, setHomeState] = useState<HomeState>("first-time");
+  const [profileStatus, setProfileStatus] =
+    useState<ProfileStatus>("incomplete");
+  const [isLoading, setIsLoading] = useState(true);
+  const [profile, setProfile] = useState<UserProfile>();
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setIsLoading(true);
+
+        const response = await browser.runtime.sendMessage({
+          type: "GET_PROFILE",
+        });
+
+        console.log("Profile response:", response);
+
+        if (response?.ok && response.profile) {
+          // Profile exists and is valid
+          const profile: UserProfile = response.profile;
+
+          // Check if profile has required fields
+          const hasRequiredFields =
+            profile.firstName &&
+            profile.lastName &&
+            profile.email &&
+            profile.currentTitle &&
+            profile.currentCompany;
+
+          if (hasRequiredFields) {
+            setProfileStatus("complete");
+            setHomeState("job-detected"); // Or "not-on-job" based on current page
+            setProfile(profile);
+          } else {
+            setProfileStatus("incomplete");
+            setHomeState("first-time");
+          }
+        } else {
+          // No profile exists
+          setProfileStatus("incomplete");
+          setHomeState("first-time");
+        }
+      } catch (err) {
+        console.error("Failed to fetch profile:", err);
+        setProfileStatus("incomplete");
+        setHomeState("first-time");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
+
+  // Show loading state while checking profile
+  if (isLoading) {
+    return (
+      <div className="dark extension-popup">
+        <div className="bg-background h-[400px] flex items-center justify-center">
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // If first time, force profile tab
+  const currentTab = homeState === "first-time" ? "profile" : activeTab;
 
   return (
     <div className="dark extension-popup">
@@ -36,19 +102,24 @@ export function ExtensionPopup() {
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs
+          value={currentTab}
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
           <TabsList className="w-full grid grid-cols-2 rounded-none border-b border-border bg-card h-12">
-            <TabsTrigger value="home" className="data-[state=active]:bg-muted">
+            <TabsTrigger
+              value="home"
+              className="data-[state=active]:bg-muted"
+              disabled={profileStatus === "incomplete"}
+            >
               Home
             </TabsTrigger>
-            {/* <TabsTrigger value="tools" className="data-[state=active]:bg-muted">
-              Tools
-            </TabsTrigger> */}
             <TabsTrigger
               value="profile"
               className="data-[state=active]:bg-muted"
             >
-              Profile
+              Profile {profileStatus === "incomplete" && "⚠️"}
             </TabsTrigger>
           </TabsList>
 
@@ -59,16 +130,17 @@ export function ExtensionPopup() {
                 profileStatus={profileStatus}
                 onStateChange={setHomeState}
                 onTabChange={setActiveTab}
+                profile={profile!}
               />
             </TabsContent>
 
-            {/* <TabsContent value="tools" className="m-0 p-4">
-              <ToolsTab profileStatus={profileStatus} />
-            </TabsContent> */}
-
             <TabsContent value="profile" className="m-0 p-4">
               <ProfileTab
-                onProfileComplete={() => setProfileStatus("complete")}
+                onProfileComplete={() => {
+                  setProfileStatus("complete");
+                  setHomeState("job-detected");
+                  setActiveTab("home"); // Switch to home tab after saving
+                }}
               />
             </TabsContent>
           </div>

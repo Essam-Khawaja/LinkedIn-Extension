@@ -16,12 +16,15 @@ import type {
   ProfileStatus,
 } from "@/entrypoints/main-popup/NewPopup";
 import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import UserProfile from "@/lib/types/user";
 
 interface HomeTabProps {
   state: HomeState;
   profileStatus: ProfileStatus;
   onStateChange: (state: HomeState) => void;
   onTabChange: (tab: string) => void;
+  profile: UserProfile;
 }
 
 export function HomeTab({
@@ -29,6 +32,7 @@ export function HomeTab({
   profileStatus,
   onStateChange,
   onTabChange,
+  profile,
 }: HomeTabProps) {
   function handleApplyClick() {
     chrome.tabs
@@ -108,77 +112,17 @@ export function HomeTab({
     );
   }
 
-  if (state === "not-on-job") {
-    return (
-      <div className="space-y-4">
-        <div className="text-center space-y-2 py-4">
-          <div className="text-4xl mb-2">🎯</div>
-          <h2 className="text-xl font-semibold text-foreground">SwiftApply</h2>
-          <p className="text-sm text-muted-foreground">
-            Ready to help you apply faster!
-          </p>
-        </div>
-
-        <Button
-          className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground"
-          onClick={() => window.open("https://www.linkedin.com/jobs", "_blank")}
-        >
-          <span className="mr-2">🔍</span>
-          Go to LinkedIn Jobs
-          <ExternalLink className="ml-2 h-4 w-4" />
-        </Button>
-
-        <Card className="p-4 bg-card border-border">
-          <h3 className="font-medium mb-3 text-card-foreground">Features</h3>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
-              Get AI summaries
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
-              Generate cover letters
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
-              Auto-fill applications
-            </li>
-          </ul>
-        </Card>
-
-        <div className="flex items-center justify-center gap-2 text-sm">
-          <span className="text-muted-foreground">Profile:</span>
-          {profileStatus === "complete" ? (
-            <Badge
-              variant="outline"
-              className="bg-success/10 text-success border-success/20"
-            >
-              <CheckCircle2 className="mr-1 h-4 w-4 flex-shrink-0" />
-              Complete
-            </Badge>
-          ) : (
-            <Badge
-              variant="outline"
-              className="bg-warning/10 text-warning border-warning/20"
-            >
-              <AlertCircle className="mr-1 h-4 w-4 flex-shrink-0" />
-              Setup needed
-            </Badge>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   // job-detected state
   return (
     <div className="space-y-4">
       <Card className="p-4 bg-card border-border">
         <div className="space-y-1">
           <h3 className="font-semibold text-card-foreground text-balance">
-            Senior Frontend Engineer
+            {profile ? profile.currentTitle : <></>}
           </h3>
-          <p className="text-sm text-muted-foreground">Vercel Inc.</p>
+          <p className="text-sm text-muted-foreground">
+            {profile ? profile.currentCompany : <></>}
+          </p>
         </div>
       </Card>
 

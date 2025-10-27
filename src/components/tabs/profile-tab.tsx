@@ -8,7 +8,15 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Minus, Plus, Save, X, Loader2, CheckCircle } from "lucide-react";
+import {
+  Minus,
+  Plus,
+  Save,
+  X,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
 
 interface UserProfile {
   firstName: string;
@@ -23,6 +31,17 @@ interface UserProfile {
   skills: string[];
   needsSponsorship: boolean;
   willingToRelocate: boolean;
+}
+
+interface ValidationErrors {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  currentTitle?: string;
+  currentCompany?: string;
+  linkedin?: string;
+  skills?: string;
 }
 
 interface ProfileTabProps {
@@ -46,6 +65,10 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     willingToRelocate: false,
   });
 
+  // Validation state
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
   // Skills input state
   const [skillInput, setSkillInput] = useState("");
 
@@ -66,7 +89,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
 
       if (result.profile) {
         setProfile(result.profile);
-        console.log("📥 Profile loaded:", result.profile);
+        console.log("Profile loaded");
       }
     } catch (error) {
       console.error("Failed to load profile:", error);
@@ -75,44 +98,180 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     }
   }
 
+  // Validation functions
+  function validateEmail(email: string): string | undefined {
+    if (!email) return "Email is required";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return "Please enter a valid email address";
+    return undefined;
+  }
+
+  function validatePhone(phone: string): string | undefined {
+    if (!phone) return "Phone number is required";
+    // Allow formats: +1 (555) 123-4567, 555-123-4567, 5551234567, etc.
+    const phoneRegex =
+      /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/;
+    if (!phoneRegex.test(phone.replace(/\s/g, ""))) {
+      return "Please enter a valid phone number";
+    }
+    return undefined;
+  }
+
+  function validateLinkedIn(url: string): string | undefined {
+    if (!url) return undefined; // LinkedIn is optional
+    if (!url.includes("linkedin.com")) {
+      return "Please enter a valid LinkedIn URL";
+    }
+    return undefined;
+  }
+
+  function validateRequired(
+    value: string,
+    fieldName: string
+  ): string | undefined {
+    if (!value || value.trim() === "") {
+      return `${fieldName} is required`;
+    }
+    return undefined;
+  }
+
+  // Validate all fields
+  function validateAllFields(): ValidationErrors {
+    const newErrors: ValidationErrors = {};
+
+    newErrors.firstName = validateRequired(profile.firstName, "First name");
+    newErrors.lastName = validateRequired(profile.lastName, "Last name");
+    newErrors.email = validateEmail(profile.email);
+    newErrors.phone = validatePhone(profile.phone);
+    newErrors.currentTitle = validateRequired(
+      profile.currentTitle,
+      "Current title"
+    );
+    newErrors.currentCompany = validateRequired(
+      profile.currentCompany,
+      "Company"
+    );
+    newErrors.linkedin = validateLinkedIn(profile.linkedin);
+
+    if (profile.skills.length === 0) {
+      newErrors.skills = "Please add at least one skill";
+    }
+
+    // Remove undefined errors
+    Object.keys(newErrors).forEach((key) => {
+      if (!newErrors[key as keyof ValidationErrors]) {
+        delete newErrors[key as keyof ValidationErrors];
+      }
+    });
+
+    return newErrors;
+  }
+
+  // Check if form is valid
+  function isFormValid(): boolean {
+    const validationErrors = validateAllFields();
+    return Object.keys(validationErrors).length === 0;
+  }
+
   // Calculate profile completion percentage
-  //   function calculateCompletion(): number {
-  //     const fields = [
-  //       profile.firstName,
-  //       profile.lastName,
-  //       profile.email,
-  //       profile.phone,
-  //       profile.currentTitle,
-  //       profile.currentCompany,
-  //       profile.yearsExperience > 0,
-  //       profile.skills.length > 0,
-  //     ];
+  function calculateCompletion(): number {
+    const fields = [
+      profile.firstName,
+      profile.lastName,
+      profile.email,
+      profile.phone,
+      profile.currentTitle,
+      profile.currentCompany,
+      profile.yearsExperience > 0,
+      profile.skills.length > 0,
+    ];
 
-  //     const filledFields = fields.filter(Boolean).length;
-  //     return Math.round((filledFields / fields.length) * 100);
-  //   }
+    const filledFields = fields.filter(Boolean).length;
+    return Math.round((filledFields / fields.length) * 100);
+  }
 
-  // Update profile field
+  // Update profile field with validation
   function updateField(field: keyof UserProfile, value: any) {
     setProfile((prev) => ({ ...prev, [field]: value }));
+
+    // Mark field as touched
+    setTouched((prev) => ({ ...prev, [field]: true }));
+
+    // Validate on change
+    const newErrors = { ...errors };
+
+    switch (field) {
+      case "firstName":
+        newErrors.firstName = validateRequired(value, "First name");
+        break;
+      case "lastName":
+        newErrors.lastName = validateRequired(value, "Last name");
+        break;
+      case "email":
+        newErrors.email = validateEmail(value);
+        break;
+      case "phone":
+        newErrors.phone = validatePhone(value);
+        break;
+      case "currentTitle":
+        newErrors.currentTitle = validateRequired(value, "Current title");
+        break;
+      case "currentCompany":
+        newErrors.currentCompany = validateRequired(value, "Company");
+        break;
+      case "linkedin":
+        newErrors.linkedin = validateLinkedIn(value);
+        break;
+    }
+
+    // Remove error if validation passed
+    Object.keys(newErrors).forEach((key) => {
+      if (!newErrors[key as keyof ValidationErrors]) {
+        delete newErrors[key as keyof ValidationErrors];
+      }
+    });
+
+    setErrors(newErrors);
+  }
+
+  // Handle field blur
+  function handleBlur(field: keyof UserProfile) {
+    setTouched((prev) => ({ ...prev, [field]: true }));
   }
 
   // Skills management
   function addSkill() {
     if (skillInput.trim() && !profile.skills.includes(skillInput.trim())) {
+      const newSkills = [...profile.skills, skillInput.trim()];
       setProfile((prev) => ({
         ...prev,
-        skills: [...prev.skills, skillInput.trim()],
+        skills: newSkills,
       }));
       setSkillInput("");
+
+      // Clear skills error if we now have skills
+      if (newSkills.length > 0) {
+        const newErrors = { ...errors };
+        delete newErrors.skills;
+        setErrors(newErrors);
+      }
     }
   }
 
   function removeSkill(index: number) {
+    const newSkills = profile.skills.filter((_, i) => i !== index);
     setProfile((prev) => ({
       ...prev,
-      skills: prev.skills.filter((_, i) => i !== index),
+      skills: newSkills,
     }));
+
+    // Add error if no skills left
+    if (newSkills.length === 0) {
+      setErrors((prev) => ({
+        ...prev,
+        skills: "Please add at least one skill",
+      }));
+    }
   }
 
   function handleSkillInputKeyPress(e: React.KeyboardEvent) {
@@ -125,21 +284,36 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
   // Save profile
   async function handleSave() {
     try {
-      setIsSaving(true);
-      setSaveSuccess(false);
+      // Mark all fields as touched
+      setTouched({
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        currentTitle: true,
+        currentCompany: true,
+        linkedin: true,
+      });
 
-      // Validate required fields
-      if (!profile.firstName || !profile.lastName || !profile.email) {
-        alert(
-          "Please fill in all required fields (First Name, Last Name, Email)"
-        );
+      // Validate all fields
+      const validationErrors = validateAllFields();
+      setErrors(validationErrors);
+
+      if (Object.keys(validationErrors).length > 0) {
+        // Scroll to first error
+        const firstErrorField = Object.keys(validationErrors)[0];
+        const element = document.getElementById(firstErrorField);
+        element?.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
+
+      setIsSaving(true);
+      setSaveSuccess(false);
 
       // Save to chrome.storage
       await chrome.storage.local.set({ profile });
 
-      console.log("💾 Profile saved:", profile);
+      console.log("Profile saved successfully");
 
       // Show success state
       setSaveSuccess(true);
@@ -159,8 +333,8 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     }
   }
 
-  //   const completion = calculateCompletion();
-  const completion = 85.0;
+  const completion = calculateCompletion();
+  const formIsValid = isFormValid();
 
   if (isLoading) {
     return (
@@ -197,10 +371,19 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
             <Input
               id="firstName"
               placeholder="John"
-              className="h-9"
+              className={`h-9 ${
+                errors.firstName && touched.firstName ? "border-red-500" : ""
+              }`}
               value={profile.firstName}
               onChange={(e) => updateField("firstName", e.target.value)}
+              onBlur={() => handleBlur("firstName")}
             />
+            {errors.firstName && touched.firstName && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                {errors.firstName}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="lastName" className="text-xs text-foreground">
@@ -209,10 +392,19 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
             <Input
               id="lastName"
               placeholder="Doe"
-              className="h-9"
+              className={`h-9 ${
+                errors.lastName && touched.lastName ? "border-red-500" : ""
+              }`}
               value={profile.lastName}
               onChange={(e) => updateField("lastName", e.target.value)}
+              onBlur={() => handleBlur("lastName")}
             />
+            {errors.lastName && touched.lastName && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                {errors.lastName}
+              </p>
+            )}
           </div>
         </div>
 
@@ -224,24 +416,42 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
             id="email"
             type="email"
             placeholder="john@example.com"
-            className="h-9"
+            className={`h-9 ${
+              errors.email && touched.email ? "border-red-500" : ""
+            }`}
             value={profile.email}
             onChange={(e) => updateField("email", e.target.value)}
+            onBlur={() => handleBlur("email")}
           />
+          {errors.email && touched.email && (
+            <p className="text-xs text-red-500 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              {errors.email}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="phone" className="text-xs text-foreground">
-            Phone
+            Phone *
           </Label>
           <Input
             id="phone"
             type="tel"
             placeholder="+1 (555) 000-0000"
-            className="h-9"
+            className={`h-9 ${
+              errors.phone && touched.phone ? "border-red-500" : ""
+            }`}
             value={profile.phone}
             onChange={(e) => updateField("phone", e.target.value)}
+            onBlur={() => handleBlur("phone")}
           />
+          {errors.phone && touched.phone && (
+            <p className="text-xs text-red-500 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              {errors.phone}
+            </p>
+          )}
         </div>
       </Card>
 
@@ -252,34 +462,56 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         </h3>
 
         <div className="space-y-2">
-          <Label htmlFor="title" className="text-xs text-foreground">
-            Current Title
+          <Label htmlFor="currentTitle" className="text-xs text-foreground">
+            Current Title *
           </Label>
           <Input
-            id="title"
+            id="currentTitle"
             placeholder="Senior Frontend Engineer"
-            className="h-9"
+            className={`h-9 ${
+              errors.currentTitle && touched.currentTitle
+                ? "border-red-500"
+                : ""
+            }`}
             value={profile.currentTitle}
             onChange={(e) => updateField("currentTitle", e.target.value)}
+            onBlur={() => handleBlur("currentTitle")}
           />
+          {errors.currentTitle && touched.currentTitle && (
+            <p className="text-xs text-red-500 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              {errors.currentTitle}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="company" className="text-xs text-foreground">
-            Company
+          <Label htmlFor="currentCompany" className="text-xs text-foreground">
+            Company *
           </Label>
           <Input
-            id="company"
+            id="currentCompany"
             placeholder="Acme Inc."
-            className="h-9"
+            className={`h-9 ${
+              errors.currentCompany && touched.currentCompany
+                ? "border-red-500"
+                : ""
+            }`}
             value={profile.currentCompany}
             onChange={(e) => updateField("currentCompany", e.target.value)}
+            onBlur={() => handleBlur("currentCompany")}
           />
+          {errors.currentCompany && touched.currentCompany && (
+            <p className="text-xs text-red-500 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              {errors.currentCompany}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="experience" className="text-xs text-foreground">
-            Years of Experience
+            Years of Experience *
           </Label>
           <div className="flex items-center gap-2">
             <Button
@@ -324,7 +556,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
       {/* Skills */}
       <Card className="p-4 bg-card border-border space-y-4">
         <div>
-          <h3 className="font-medium text-card-foreground text-sm">Skills</h3>
+          <h3 className="font-medium text-card-foreground text-sm">Skills *</h3>
           <p className="text-xs text-muted-foreground mt-1">
             Add your skills to match with job requirements
           </p>
@@ -375,8 +607,14 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         )}
 
         {profile?.skills?.length === 0 && (
-          <p className="text-xs text-muted-foreground italic">
-            No skills added yet. Add skills to improve job matching!
+          <p
+            className={`text-xs flex items-center gap-1 ${
+              errors.skills ? "text-red-500" : "text-muted-foreground italic"
+            }`}
+          >
+            {errors.skills && <AlertCircle className="h-3 w-3" />}
+            {errors.skills ||
+              "No skills added yet. Add skills to improve job matching!"}
           </p>
         )}
       </Card>
@@ -387,15 +625,24 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
 
         <div className="space-y-2">
           <Label htmlFor="linkedin" className="text-xs text-foreground">
-            LinkedIn URL
+            LinkedIn URL *
           </Label>
           <Input
             id="linkedin"
             placeholder="linkedin.com/in/johndoe"
-            className="h-9"
+            className={`h-9 ${
+              errors.linkedin && touched.linkedin ? "border-red-500" : ""
+            }`}
             value={profile.linkedin}
             onChange={(e) => updateField("linkedin", e.target.value)}
+            onBlur={() => handleBlur("linkedin")}
           />
+          {errors.linkedin && touched.linkedin && (
+            <p className="text-xs text-red-500 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              {errors.linkedin}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -452,11 +699,9 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
       </Card>
 
       <Button
-        className="w-full h-11 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground"
+        className="w-full h-11 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground disabled:opacity-50"
         onClick={handleSave}
-        disabled={
-          isSaving || !profile.firstName || !profile.lastName || !profile.email
-        }
+        disabled={isSaving || !formIsValid}
       >
         {isSaving ? (
           <>
@@ -471,14 +716,20 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         ) : (
           <>
             <Save className="mr-2 h-4 w-4" />
-            Save Profile
+            Save Profile {!formIsValid && "(Complete all fields)"}
           </>
         )}
       </Button>
 
       {saveSuccess && (
         <div className="text-center text-sm text-green-600 dark:text-green-400">
-          ✅ Profile saved successfully! You can now use all features.
+          Profile saved successfully! You can now use all features.
+        </div>
+      )}
+
+      {!formIsValid && Object.keys(errors).length > 0 && (
+        <div className="text-center text-sm text-red-500 dark:text-red-400">
+          Please complete all required fields correctly
         </div>
       )}
     </div>
