@@ -37,13 +37,13 @@ export function ExtensionPopup() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-3 rounded-none border-b border-border bg-card h-12">
+          <TabsList className="w-full grid grid-cols-2 rounded-none border-b border-border bg-card h-12">
             <TabsTrigger value="home" className="data-[state=active]:bg-muted">
               Home
             </TabsTrigger>
-            <TabsTrigger value="tools" className="data-[state=active]:bg-muted">
+            {/* <TabsTrigger value="tools" className="data-[state=active]:bg-muted">
               Tools
-            </TabsTrigger>
+            </TabsTrigger> */}
             <TabsTrigger
               value="profile"
               className="data-[state=active]:bg-muted"
@@ -62,9 +62,9 @@ export function ExtensionPopup() {
               />
             </TabsContent>
 
-            <TabsContent value="tools" className="m-0 p-4">
+            {/* <TabsContent value="tools" className="m-0 p-4">
               <ToolsTab profileStatus={profileStatus} />
-            </TabsContent>
+            </TabsContent> */}
 
             <TabsContent value="profile" className="m-0 p-4">
               <ProfileTab
