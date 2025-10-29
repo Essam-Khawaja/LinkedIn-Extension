@@ -1,30 +1,42 @@
-import type  UserProfile  from '@/lib/types/user';
+import type UserProfile from '@/lib/types/user';
+import type { EmploymentEntry } from '@/lib/types/user';
 
 export default defineContentScript({
   matches: [
+    '*://*.greenhouse.io/*',
+    '*://*.lever.co/*',
+    '*://*.myworkdayjobs.com/*',
+    '*://linkedin.com/jobs/*/apply/*',
+    '*://*.linkedin.com/jobs/*/apply/*'
   ],
   
   async main() {
     console.log('Auto-fill script loaded');
+    
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.action === "start-auto-fill") {
         console.log("Received auto-fill request");
 
         chrome.runtime.sendMessage({ type: "GET_PROFILE" }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error("Background error:", chrome.runtime.lastError);
-        return;
+          if (chrome.runtime.lastError) {
+            console.error("Background error:", chrome.runtime.lastError);
+            return;
+          }
+          console.log("Got profile");
+          handleAutoFillClick(response.profile);
+        });
       }
-      console.log("Got profile:", response);
-      handleAutoFillClick(response.profile)
     });
-    }
-  });
   }
 });
 
-async function handleAutoFillClick(profile: any) {
-  try {    
+async function handleAutoFillClick(profile: UserProfile) {
+  try {
+    if (!profile) {
+      alert('Please set up your profile first in the extension!');
+      return;
+    }
+    
     // Do the auto-fill
     const result = await autoFillForm(profile);
     
@@ -49,6 +61,7 @@ function showSuccessMessage(filledCount: number, aiCount: number) {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     font-size: 14px;
+    animation: slideIn 0.3s ease-out;
   `;
   
   notification.innerHTML = `
@@ -65,7 +78,10 @@ function showSuccessMessage(filledCount: number, aiCount: number) {
   
   document.body.appendChild(notification);
   
-  setTimeout(() => notification.remove(), 3000);
+  setTimeout(() => {
+    notification.style.animation = 'slideOut 0.3s ease-out';
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
 }
 
 interface FieldInfo {
@@ -78,7 +94,6 @@ interface FieldInfo {
 function getAllFields(): FieldInfo[] {
   const fields: FieldInfo[] = [];
   
-  // Get all fillable elements
   const inputs = document.querySelectorAll<HTMLInputElement>(
     'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="image"])'
   );
@@ -98,23 +113,20 @@ function getAllFields(): FieldInfo[] {
     });
   });
 
-  console.log(fields);
+  console.log('Detected fields:', fields.length);
   
   return fields;
 }
 
 function getFieldLabel(field: HTMLElement): string {
-  // Method 1: <label for="id">
   if (field.id) {
     const label = document.querySelector(`label[for="${field.id}"]`);
     if (label?.textContent) return label.textContent.trim();
   }
   
-  // Method 2: Parent <label>
   const parentLabel = field.closest('label');
   if (parentLabel?.textContent) return parentLabel.textContent.trim();
   
-  // Method 3: Previous sibling
   let prev = field.previousElementSibling;
   while (prev) {
     if (prev.tagName === 'LABEL' && prev.textContent) {
@@ -123,18 +135,15 @@ function getFieldLabel(field: HTMLElement): string {
     prev = prev.previousElementSibling;
   }
   
-  // Method 4: Look in parent container
   const parent = field.closest('div, fieldset, li');
   if (parent) {
     const labelEl = parent.querySelector('label, legend');
     if (labelEl?.textContent) return labelEl.textContent.trim();
   }
   
-  // Method 5: aria-label
   const ariaLabel = field.getAttribute('aria-label');
   if (ariaLabel) return ariaLabel;
   
-  // Method 6: placeholder as last resort
   if ('placeholder' in field) {
     const inputElement = field as HTMLInputElement | HTMLTextAreaElement;
     if (inputElement.placeholder) {
@@ -153,72 +162,90 @@ function detectFieldType(
   const fieldName = field.name.toLowerCase();
   const fieldId = field.id.toLowerCase();
   
-  // Combine all search sources
   const searchIn = `${searchText} ${fieldName} ${fieldId}`;
   
-  // Check for each field type
+  // Basic Info
   if (matchesKeywords(searchIn, ['first name', 'firstname', 'given name', 'fname'])) {
     return 'firstName';
   }
   if (matchesKeywords(searchIn, ['last name', 'lastname', 'surname', 'family name', 'lname'])) {
     return 'lastName';
   }
-  if (matchesKeywords(searchIn, ['full name', 'your name']) && !searchIn.includes('first') && !searchIn.includes('last')) {
+  if (matchesKeywords(searchIn, ['full name', 'your name', 'legal name']) && !searchIn.includes('first') && !searchIn.includes('last')) {
     return 'fullName';
   }
-  if (matchesKeywords(searchIn, ['email', 'e-mail'])) {
+  if (matchesKeywords(searchIn, ['email', 'e-mail', 'email address'])) {
     return 'email';
   }
-  if (matchesKeywords(searchIn, ['phone', 'telephone', 'mobile', 'cell'])) {
+  if (matchesKeywords(searchIn, ['phone', 'telephone', 'mobile', 'cell', 'contact number'])) {
     return 'phone';
   }
-  if (matchesKeywords(searchIn, ['linkedin', 'linkedin profile'])) {
-    return 'linkedin';
-  }
-  if (matchesKeywords(searchIn, ['portfolio', 'website', 'personal site', 'github'])) {
-    return 'portfolio';
-  }
-  if (matchesKeywords(searchIn, ['current company', 'employer'])) {
-    return 'currentCompany';
-  }
-  if (matchesKeywords(searchIn, ['current title', 'job title', 'current role', 'position'])) {
-    return 'currentTitle';
-  }
-  if (matchesKeywords(searchIn, ['years of experience', 'experience', 'years experience'])) {
-    return 'experience';
-  }
-  if (matchesKeywords(searchIn, ['address', 'street'])) {
+  
+  // Location
+  if (matchesKeywords(searchIn, ['street address', 'address line', 'address']) && !searchIn.includes('email')) {
     return 'address';
   }
   if (matchesKeywords(searchIn, ['city', 'town'])) {
     return 'city';
   }
-  if (matchesKeywords(searchIn, ['state', 'province'])) {
+  if (matchesKeywords(searchIn, ['state', 'province', 'region'])) {
     return 'state';
   }
-  if (matchesKeywords(searchIn, ['zip', 'postal code', 'postcode'])) {
+  if (matchesKeywords(searchIn, ['zip', 'postal code', 'postcode', 'zip code'])) {
     return 'zip';
+  }
+  
+  // Professional
+  if (matchesKeywords(searchIn, ['job title', 'current title', 'position', 'role']) && !searchIn.includes('desired')) {
+    return 'currentTitle';
+  }
+  if (matchesKeywords(searchIn, ['company', 'employer', 'organization', 'current company'])) {
+    return 'currentCompany';
+  }
+  if (matchesKeywords(searchIn, ['years of experience', 'years experience', 'experience'])) {
+    return 'yearsExperience';
+  }
+  
+  // Education
+  if (matchesKeywords(searchIn, ['education', 'degree', 'university', 'school', 'college'])) {
+    return 'education';
+  }
+  
+  // Links
+  if (matchesKeywords(searchIn, ['linkedin', 'linkedin profile', 'linkedin url'])) {
+    return 'linkedin';
+  }
+  if (matchesKeywords(searchIn, ['github', 'github profile', 'github url'])) {
+    return 'github';
+  }
+  if (matchesKeywords(searchIn, ['portfolio', 'website', 'personal site', 'personal website'])) {
+    return 'portfolio';
+  }
+  
+  // Compensation
+  if (matchesKeywords(searchIn, ['salary', 'compensation', 'expected salary', 'salary expectation', 'desired salary'])) {
+    return 'salaryExpectation';
   }
   
   // Checkboxes
   if ('type' in field && (field.type === 'checkbox' || field.type === 'radio')) {
-    if (matchesKeywords(searchIn, ['sponsor', 'visa', 'authorized to work', 'work authorization'])) {
+    if (matchesKeywords(searchIn, ['sponsor', 'visa', 'authorized to work', 'work authorization', 'require sponsorship'])) {
       return 'sponsorship';
     }
-    if (matchesKeywords(searchIn, ['relocate', 'relocation', 'willing to move'])) {
+    if (matchesKeywords(searchIn, ['relocate', 'relocation', 'willing to move', 'willing to relocate'])) {
       return 'relocation';
     }
     return 'checkbox-unknown';
   }
   
-  // Custom questions (textareas with question-like labels)
+  // Custom questions
   if (field.tagName === 'TEXTAREA' || ('type' in field && field.type === 'text')) {
-    if (label.length > 30 || label.includes('?') || label.includes('why') || label.includes('describe')) {
+    if (label.length > 30 || label.includes('?') || label.includes('why') || label.includes('describe') || label.includes('tell us')) {
       return 'customQuestion';
     }
   }
   
-  return null; // Unknown field type
+  return null;
 }
 
 function matchesKeywords(text: string, keywords: string[]): boolean {
@@ -252,11 +279,17 @@ async function autoFillForm(profile: UserProfile) {
     
     // Fill standard fields
     const success = fillField(fieldInfo, profile);
-    if (success) filledCount++;
+    if (success) {
+      console.log(`Filled: ${fieldInfo.type}`);
+      filledCount++;
+    }
   }
   
-  // Second pass: use AI for custom questions
+  console.log(`Filled ${filledCount} standard fields`);
+  
+  // Second pass: use AI for custom questions (if available)
   if (customQuestions.length > 0) {
+    console.log(`Found ${customQuestions.length} custom questions`);
     const jobContext = extractJobContext();
     
     for (const fieldInfo of customQuestions) {
@@ -277,9 +310,8 @@ async function autoFillForm(profile: UserProfile) {
 function fillField(fieldInfo: FieldInfo, profile: UserProfile): boolean {
   const { element, type } = fieldInfo;
   
-  // Get the value to fill
   const value = getValueForFieldType(type, profile);
-  if (!value) return false;
+  if (value === null || value === undefined || value === '') return false;
   
   // Fill based on element type
   if (element.tagName === 'SELECT') {
@@ -296,21 +328,42 @@ function fillField(fieldInfo: FieldInfo, profile: UserProfile): boolean {
 function getValueForFieldType(type: string | null, profile: UserProfile): any {
   if (!type) return null;
   
+  // Get current job if employment history exists
+  const currentJob = (profile.employmentHistory || []).find(job => job.isCurrent);
+  const mostRecentJob = (profile.employmentHistory || [])[0]; // First entry
+  const jobToUse = currentJob || mostRecentJob;
+  
   const valueMap: Record<string, any> = {
+    // Basic
     firstName: profile.firstName,
     lastName: profile.lastName,
     fullName: `${profile.firstName} ${profile.lastName}`,
     email: profile.email,
     phone: profile.phone,
-    linkedin: profile.linkedin,
-    portfolio: profile.portfolio,
+    
+    // Location
     address: profile.address,
     city: profile.city,
     state: profile.state,
     zip: profile.zip,
-    currentCompany: profile.currentCompany,
-    currentTitle: profile.currentTitle,
-    experience: profile.yearsExperience,
+    
+    // Professional (use employment history if available, fallback to old fields)
+    currentTitle: jobToUse?.jobTitle || '',
+    currentCompany: jobToUse?.company || '',
+    yearsExperience: profile.yearsExperience,
+    
+    // Education
+    education: profile.education,
+    
+    // Links
+    linkedin: profile.linkedin,
+    github: profile.github,
+    portfolio: profile.portfolio,
+    
+    // Compensation
+    salaryExpectation: profile.salaryExpectation,
+    
+    // Preferences
     sponsorship: profile.needsSponsorship ? 'yes' : 'no',
     relocation: profile.willingToRelocate ? 'yes' : 'no',
   };
@@ -384,7 +437,6 @@ function fillRadio(radio: HTMLInputElement, value: any): boolean {
 }
 
 function triggerInputEvents(element: HTMLElement) {
-  // Trigger multiple events to ensure the site recognizes the change
   const events = [
     new Event('input', { bubbles: true }),
     new Event('change', { bubbles: true }),
@@ -428,22 +480,44 @@ async function answerCustomQuestion(
   profile: UserProfile,
   jobContext: { title: string; company: string }
 ): Promise<string | null> {
+  // Get current or most recent job
+  const currentJob = (profile.employmentHistory || []).find(job => job.isCurrent);
+  const mostRecentJob = (profile.employmentHistory || [])[0];
+  const jobToReference = currentJob || mostRecentJob;
+  
+  const currentRole = jobToReference?.jobTitle || 'Not specified';
+  const currentCompany = jobToReference?.company || '';
+  
+  // Build skills string
+  const skillsStr = (profile.skills || []).join(', ') || 'Not specified';
+  
+  // Build experience summary from employment history
+  let experienceSummary = '';
+  if (profile.employmentHistory && profile.employmentHistory.length > 0) {
+    experienceSummary = profile.employmentHistory.slice(0, 2).map(job => 
+      `${job.jobTitle} at ${job.company} (${job.startDate} - ${job.isCurrent ? 'Present' : job.endDate})`
+    ).join('; ');
+  }
+  
   const prompt = `You are helping someone fill out a job application. Answer this question professionally and concisely (max 100 words):
 
 Question: "${question}"
 
-Job: ${jobContext.title} at ${jobContext.company}
+Job Applying For: ${jobContext.title} at ${jobContext.company}
 
-Candidate Background:
+Candidate Profile:
 - Name: ${profile.firstName} ${profile.lastName}
-- Current Role: ${profile.currentTitle || 'Not specified'}
-- Experience: ${profile.yearsExperience || 'Not specified'} years
+- Current/Recent Role: ${currentRole}${currentCompany ? ` at ${currentCompany}` : ''}
+- Total Experience: ${profile.yearsExperience || 0} years
+- Key Skills: ${skillsStr}
+${experienceSummary ? `- Work History: ${experienceSummary}` : ''}
+${profile.education ? `- Education: ${profile.education}` : ''}
 
-Provide only the answer, no preamble or explanation:`;
+Provide only the answer, no preamble or explanation. Be specific and relevant to both the question and the job.`;
 
   try {
-    // @ts-ignore
-    const availability = await LanguageModel.availability();
+    // @ts-ignore - Chrome AI API
+    const availability = await ai.languageModel.availability();
 
     if (availability === 'no') {
       console.warn("Gemini Nano not available");
@@ -451,22 +525,18 @@ Provide only the answer, no preamble or explanation:`;
     }
 
     if (availability === 'after-download') {
-      console.log("Triggering Gemini Nano download...");
+      console.log("Triggering Gemini Nano download");
       // @ts-ignore
-      await LanguageModel.create();
+      await ai.languageModel.create();
       return null;
     }
 
     // @ts-ignore
-    const session = await LanguageModel.create();
-
+    const session = await ai.languageModel.create();
     const result = await session.prompt(prompt);
-    console.log("Raw AI Response:", result);
-
-      let cleanedResult = result.trim();
     
     session.destroy();
-    return cleanedResult;
+    return result.trim();
   } catch (error) {
     console.error('AI answering failed:', error);
     return null;

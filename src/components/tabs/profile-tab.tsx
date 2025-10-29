@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,32 +17,24 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
+  Briefcase,
 } from "lucide-react";
-
-interface UserProfile {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  currentTitle: string;
-  currentCompany: string;
-  yearsExperience: number;
-  linkedin: string;
-  portfolio: string;
-  skills: string[];
-  needsSponsorship: boolean;
-  willingToRelocate: boolean;
-}
+import type UserProfile from "@/lib/types/user";
+import type EmploymentEntry from "@/lib/types/user";
 
 interface ValidationErrors {
   firstName?: string;
   lastName?: string;
   email?: string;
   phone?: string;
-  currentTitle?: string;
-  currentCompany?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
   linkedin?: string;
+  github?: string;
   skills?: string;
+  employmentHistory?: string;
 }
 
 interface ProfileTabProps {
@@ -49,35 +42,38 @@ interface ProfileTabProps {
 }
 
 export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
-  // Form state
+  // @ts-ignore
   const [profile, setProfile] = useState<UserProfile>({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
-    currentTitle: "",
-    currentCompany: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
     yearsExperience: 0,
+    employmentHistory: [],
+    skills: [],
+    education: "",
+    resumeSummary: "",
+    certifications: [],
+    salaryExpectation: "",
     linkedin: "",
     portfolio: "",
-    skills: [],
+    github: "",
     needsSponsorship: false,
     willingToRelocate: false,
   });
 
-  // Validation state
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-
-  // Skills input state
   const [skillInput, setSkillInput] = useState("");
-
-  // UI state
+  const [certInput, setCertInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load existing profile on mount
   useEffect(() => {
     loadProfile();
   }, []);
@@ -86,10 +82,14 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     try {
       setIsLoading(true);
       const result = await chrome.storage.local.get("profile");
-
       if (result.profile) {
-        setProfile(result.profile);
-        console.log("Profile loaded");
+        // Ensure employmentHistory exists (for backward compatibility)
+        const loadedProfile = {
+          ...result.profile,
+          employmentHistory: result.profile.employmentHistory || [],
+          certifications: result.profile.certifications || [],
+        };
+        setProfile(loadedProfile);
       }
     } catch (error) {
       console.error("Failed to load profile:", error);
@@ -98,17 +98,16 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     }
   }
 
-  // Validation functions
+  // Validation
   function validateEmail(email: string): string | undefined {
     if (!email) return "Email is required";
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return "Please enter a valid email address";
+    if (!emailRegex.test(email)) return "Please enter a valid email";
     return undefined;
   }
 
   function validatePhone(phone: string): string | undefined {
-    if (!phone) return "Phone number is required";
-    // Allow formats: +1 (555) 123-4567, 555-123-4567, 5551234567, etc.
+    if (!phone) return "Phone is required";
     const phoneRegex =
       /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/;
     if (!phoneRegex.test(phone.replace(/\s/g, ""))) {
@@ -117,10 +116,10 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     return undefined;
   }
 
-  function validateLinkedIn(url: string): string | undefined {
-    if (!url) return undefined; // LinkedIn is optional
-    if (!url.includes("linkedin.com")) {
-      return "Please enter a valid LinkedIn URL";
+  function validateURL(url: string, platform: string): string | undefined {
+    if (!url) return `${platform} URL is required`;
+    if (!url.includes(platform.toLowerCase())) {
+      return `Please enter a valid ${platform} URL`;
     }
     return undefined;
   }
@@ -135,7 +134,6 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     return undefined;
   }
 
-  // Validate all fields
   function validateAllFields(): ValidationErrors {
     const newErrors: ValidationErrors = {};
 
@@ -143,21 +141,24 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     newErrors.lastName = validateRequired(profile.lastName, "Last name");
     newErrors.email = validateEmail(profile.email);
     newErrors.phone = validatePhone(profile.phone);
-    newErrors.currentTitle = validateRequired(
-      profile.currentTitle,
-      "Current title"
-    );
-    newErrors.currentCompany = validateRequired(
-      profile.currentCompany,
-      "Company"
-    );
-    newErrors.linkedin = validateLinkedIn(profile.linkedin);
+    newErrors.address = validateRequired(profile.address, "Address");
+    newErrors.city = validateRequired(profile.city, "City");
+    newErrors.state = validateRequired(profile.state, "State");
+    newErrors.zip = validateRequired(profile.zip, "ZIP code");
+    newErrors.linkedin = validateURL(profile.linkedin, "LinkedIn");
 
-    if (profile.skills.length === 0) {
+    if ((profile.employmentHistory || []).length === 0) {
+      newErrors.employmentHistory = "Please add at least one employment entry";
+    }
+
+    if (profile.github && !profile.github.includes("github.com")) {
+      newErrors.github = "Please enter a valid GitHub URL";
+    }
+
+    if ((profile.skills || []).length === 0) {
       newErrors.skills = "Please add at least one skill";
     }
 
-    // Remove undefined errors
     Object.keys(newErrors).forEach((key) => {
       if (!newErrors[key as keyof ValidationErrors]) {
         delete newErrors[key as keyof ValidationErrors];
@@ -167,39 +168,54 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     return newErrors;
   }
 
-  // Check if form is valid
   function isFormValid(): boolean {
     const validationErrors = validateAllFields();
     return Object.keys(validationErrors).length === 0;
   }
 
-  // Calculate profile completion percentage
   function calculateCompletion(): number {
-    const fields = [
+    const requiredFields = [
       profile.firstName,
       profile.lastName,
       profile.email,
       profile.phone,
-      profile.currentTitle,
-      profile.currentCompany,
-      profile.yearsExperience > 0,
-      profile.skills.length > 0,
+      profile.address,
+      profile.city,
+      profile.state,
+      profile.zip,
+      profile.linkedin,
+      (profile.employmentHistory || []).length > 0,
+      (profile.skills || []).length > 0,
     ];
 
-    const filledFields = fields.filter(Boolean).length;
-    return Math.round((filledFields / fields.length) * 100);
+    const optionalFields = [
+      profile.education,
+      profile.resumeSummary,
+      profile.github,
+      profile.portfolio,
+      (profile.certifications || []).length > 0,
+      profile.salaryExpectation,
+    ];
+
+    const requiredFilled = requiredFields.filter(Boolean).length;
+    const optionalFilled = optionalFields.filter(Boolean).length;
+
+    const requiredWeight = 0.7;
+    const optionalWeight = 0.3;
+
+    const requiredScore =
+      (requiredFilled / requiredFields.length) * requiredWeight;
+    const optionalScore =
+      (optionalFilled / optionalFields.length) * optionalWeight;
+
+    return Math.round((requiredScore + optionalScore) * 100);
   }
 
-  // Update profile field with validation
   function updateField(field: keyof UserProfile, value: any) {
     setProfile((prev) => ({ ...prev, [field]: value }));
-
-    // Mark field as touched
     setTouched((prev) => ({ ...prev, [field]: true }));
 
-    // Validate on change
     const newErrors = { ...errors };
-
     switch (field) {
       case "firstName":
         newErrors.firstName = validateRequired(value, "First name");
@@ -213,18 +229,18 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
       case "phone":
         newErrors.phone = validatePhone(value);
         break;
-      case "currentTitle":
-        newErrors.currentTitle = validateRequired(value, "Current title");
-        break;
-      case "currentCompany":
-        newErrors.currentCompany = validateRequired(value, "Company");
-        break;
       case "linkedin":
-        newErrors.linkedin = validateLinkedIn(value);
+        newErrors.linkedin = validateURL(value, "LinkedIn");
+        break;
+      case "github":
+        if (value && !value.includes("github.com")) {
+          newErrors.github = "Please enter a valid GitHub URL";
+        } else {
+          delete newErrors.github;
+        }
         break;
     }
 
-    // Remove error if validation passed
     Object.keys(newErrors).forEach((key) => {
       if (!newErrors[key as keyof ValidationErrors]) {
         delete newErrors[key as keyof ValidationErrors];
@@ -234,22 +250,18 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     setErrors(newErrors);
   }
 
-  // Handle field blur
   function handleBlur(field: keyof UserProfile) {
     setTouched((prev) => ({ ...prev, [field]: true }));
   }
 
-  // Skills management
   function addSkill() {
-    if (skillInput.trim() && !profile.skills.includes(skillInput.trim())) {
-      const newSkills = [...profile.skills, skillInput.trim()];
-      setProfile((prev) => ({
-        ...prev,
-        skills: newSkills,
-      }));
+    if (
+      skillInput.trim() &&
+      !(profile.skills || []).includes(skillInput.trim())
+    ) {
+      const newSkills = [...(profile.skills || []), skillInput.trim()];
+      setProfile((prev) => ({ ...prev, skills: newSkills }));
       setSkillInput("");
-
-      // Clear skills error if we now have skills
       if (newSkills.length > 0) {
         const newErrors = { ...errors };
         delete newErrors.skills;
@@ -259,13 +271,8 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
   }
 
   function removeSkill(index: number) {
-    const newSkills = profile.skills.filter((_, i) => i !== index);
-    setProfile((prev) => ({
-      ...prev,
-      skills: newSkills,
-    }));
-
-    // Add error if no skills left
+    const newSkills = (profile.skills || []).filter((_, i) => i !== index);
+    setProfile((prev) => ({ ...prev, skills: newSkills }));
     if (newSkills.length === 0) {
       setErrors((prev) => ({
         ...prev,
@@ -274,33 +281,96 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     }
   }
 
-  function handleSkillInputKeyPress(e: React.KeyboardEvent) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addSkill();
+  function addCertification() {
+    if (certInput.trim()) {
+      const newCerts = [...(profile.certifications || []), certInput.trim()];
+      setProfile((prev) => ({ ...prev, certifications: newCerts }));
+      setCertInput("");
     }
   }
 
-  // Save profile
+  function removeCertification(index: number) {
+    const newCerts = (profile.certifications || []).filter(
+      (_, i) => i !== index
+    );
+    setProfile((prev) => ({ ...prev, certifications: newCerts }));
+  }
+
+  // Employment History Management
+  function addEmployment() {
+    // @ts-ignore
+    const newEntry: EmploymentEntry = {
+      // @ts-ignore
+      id: Date.now().toString(),
+      jobTitle: "",
+      company: "",
+      startDate: "",
+      endDate: "",
+      isCurrent: false,
+      description: "",
+    };
+    //@ts-ignore
+    setProfile((prev) => ({
+      ...prev,
+      employmentHistory: [...(prev.employmentHistory || []), newEntry],
+    }));
+  }
+
+  function updateEmployment(
+    id: string,
+    field: keyof EmploymentEntry,
+    value: any
+  ) {
+    setProfile((prev) => ({
+      ...prev,
+      employmentHistory: (prev.employmentHistory || []).map((entry) =>
+        entry.id === id ? { ...entry, [field]: value } : entry
+      ),
+    }));
+  }
+
+  function removeEmployment(id: string) {
+    setProfile((prev) => ({
+      ...prev,
+      employmentHistory: (prev.employmentHistory || []).filter(
+        (entry) => entry.id !== id
+      ),
+    }));
+  }
+
+  function toggleCurrentEmployment(id: string) {
+    setProfile((prev) => ({
+      ...prev,
+      employmentHistory: (prev.employmentHistory || []).map((entry) =>
+        entry.id === id
+          ? {
+              ...entry,
+              isCurrent: !entry.isCurrent,
+              endDate: !entry.isCurrent ? "" : entry.endDate,
+            }
+          : entry
+      ),
+    }));
+  }
+
   async function handleSave() {
     try {
-      // Mark all fields as touched
       setTouched({
         firstName: true,
         lastName: true,
         email: true,
         phone: true,
-        currentTitle: true,
-        currentCompany: true,
+        address: true,
+        city: true,
+        state: true,
+        zip: true,
         linkedin: true,
       });
 
-      // Validate all fields
       const validationErrors = validateAllFields();
       setErrors(validationErrors);
 
       if (Object.keys(validationErrors).length > 0) {
-        // Scroll to first error
         const firstErrorField = Object.keys(validationErrors)[0];
         const element = document.getElementById(firstErrorField);
         element?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -310,20 +380,14 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
       setIsSaving(true);
       setSaveSuccess(false);
 
-      // Save to chrome.storage
       await chrome.storage.local.set({ profile });
 
-      console.log("Profile saved successfully");
-
-      // Show success state
       setSaveSuccess(true);
 
-      // Call callback if provided
       if (onProfileComplete) {
         onProfileComplete();
       }
 
-      // Hide success message after 3 seconds
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error("Failed to save profile:", error);
@@ -345,14 +409,14 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-hidden">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
           <span>⚙️</span>
           Your Profile
         </h2>
         <div className="text-right">
-          <p className="text-xs text-muted-foreground">Profile completion</p>
+          <p className="text-xs text-muted-foreground">Completion</p>
           <p className="text-sm font-medium text-foreground">{completion}%</p>
         </div>
       </div>
@@ -365,7 +429,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label htmlFor="firstName" className="text-xs text-foreground">
+            <Label htmlFor="firstName" className="text-xs">
               First Name *
             </Label>
             <Input
@@ -386,7 +450,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="lastName" className="text-xs text-foreground">
+            <Label htmlFor="lastName" className="text-xs">
               Last Name *
             </Label>
             <Input
@@ -409,7 +473,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-xs text-foreground">
+          <Label htmlFor="email" className="text-xs">
             Email *
           </Label>
           <Input
@@ -432,7 +496,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="phone" className="text-xs text-foreground">
+          <Label htmlFor="phone" className="text-xs">
             Phone *
           </Label>
           <Input
@@ -455,6 +519,64 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         </div>
       </Card>
 
+      {/* Location */}
+      <Card className="p-4 bg-card border-border space-y-4">
+        <h3 className="font-medium text-card-foreground text-sm">Location</h3>
+
+        <div className="space-y-2">
+          <Label htmlFor="address" className="text-xs">
+            Address *
+          </Label>
+          <Input
+            id="address"
+            placeholder="123 Main St"
+            className="h-9"
+            value={profile.address}
+            onChange={(e) => updateField("address", e.target.value)}
+          />
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-2 space-y-2">
+            <Label htmlFor="city" className="text-xs">
+              City *
+            </Label>
+            <Input
+              id="city"
+              placeholder="San Francisco"
+              className="h-9"
+              value={profile.city}
+              onChange={(e) => updateField("city", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="state" className="text-xs">
+              State *
+            </Label>
+            <Input
+              id="state"
+              placeholder="CA"
+              className="h-9"
+              value={profile.state}
+              onChange={(e) => updateField("state", e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="zip" className="text-xs">
+            ZIP Code *
+          </Label>
+          <Input
+            id="zip"
+            placeholder="94102"
+            className="h-9"
+            value={profile.zip}
+            onChange={(e) => updateField("zip", e.target.value)}
+          />
+        </div>
+      </Card>
+
       {/* Professional */}
       <Card className="p-4 bg-card border-border space-y-4">
         <h3 className="font-medium text-card-foreground text-sm">
@@ -462,62 +584,14 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         </h3>
 
         <div className="space-y-2">
-          <Label htmlFor="currentTitle" className="text-xs text-foreground">
-            Current Title *
-          </Label>
-          <Input
-            id="currentTitle"
-            placeholder="Senior Frontend Engineer"
-            className={`h-9 ${
-              errors.currentTitle && touched.currentTitle
-                ? "border-red-500"
-                : ""
-            }`}
-            value={profile.currentTitle}
-            onChange={(e) => updateField("currentTitle", e.target.value)}
-            onBlur={() => handleBlur("currentTitle")}
-          />
-          {errors.currentTitle && touched.currentTitle && (
-            <p className="text-xs text-red-500 flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" />
-              {errors.currentTitle}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="currentCompany" className="text-xs text-foreground">
-            Company *
-          </Label>
-          <Input
-            id="currentCompany"
-            placeholder="Acme Inc."
-            className={`h-9 ${
-              errors.currentCompany && touched.currentCompany
-                ? "border-red-500"
-                : ""
-            }`}
-            value={profile.currentCompany}
-            onChange={(e) => updateField("currentCompany", e.target.value)}
-            onBlur={() => handleBlur("currentCompany")}
-          />
-          {errors.currentCompany && touched.currentCompany && (
-            <p className="text-xs text-red-500 flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" />
-              {errors.currentCompany}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="experience" className="text-xs text-foreground">
-            Years of Experience *
+          <Label htmlFor="yearsExperience" className="text-xs">
+            Total Years of Experience *
           </Label>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
-              className="h-9 w-9 bg-transparent"
+              className="h-9 w-9"
               onClick={() =>
                 updateField(
                   "yearsExperience",
@@ -528,21 +602,18 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
               <Minus className="h-4 w-4" />
             </Button>
             <Input
-              id="experience"
+              id="yearsExperience"
               type="number"
               value={profile.yearsExperience}
               onChange={(e) =>
-                updateField(
-                  "yearsExperience",
-                  Number.parseInt(e.target.value) || 0
-                )
+                updateField("yearsExperience", parseInt(e.target.value) || 0)
               }
               className="h-9 text-center"
             />
             <Button
               variant="outline"
               size="icon"
-              className="h-9 w-9 bg-transparent"
+              className="h-9 w-9"
               onClick={() =>
                 updateField("yearsExperience", profile.yearsExperience + 1)
               }
@@ -551,6 +622,182 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
             </Button>
           </div>
         </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="education" className="text-xs">
+            Education (optional)
+          </Label>
+          <Input
+            id="education"
+            placeholder="Bachelor's in Computer Science, MIT"
+            className="h-9"
+            value={profile.education}
+            onChange={(e) => updateField("education", e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="salaryExpectation" className="text-xs">
+            Salary Expectation (optional)
+          </Label>
+          <Input
+            id="salaryExpectation"
+            placeholder="$80,000 - $100,000"
+            className="h-9"
+            value={profile.salaryExpectation}
+            onChange={(e) => updateField("salaryExpectation", e.target.value)}
+          />
+        </div>
+      </Card>
+
+      {/* Employment History */}
+      <Card className="p-4 bg-card border-border space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-card-foreground text-sm">
+              Employment History *
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Add your work experience (at least one required)
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={addEmployment}
+            className="h-8"
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Add Job
+          </Button>
+        </div>
+
+        {profile.employmentHistory?.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Briefcase className="h-12 w-12 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No employment history added yet</p>
+            <p className="text-xs mt-1">Click "Add Job" to get started</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {(profile.employmentHistory || []).map((job, index) => (
+              <Card key={job.id} className="p-3 bg-background border-border">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">
+                      Position {index + 1}
+                    </span>
+                    {job.isCurrent && (
+                      <Badge variant="secondary" className="text-xs">
+                        Current
+                      </Badge>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeEmployment(job.id)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Job Title</Label>
+                      <Input
+                        placeholder="Software Engineer"
+                        className="h-8 text-sm"
+                        value={job.jobTitle}
+                        onChange={(e) =>
+                          // @ts-ignore
+                          updateEmployment(job.id, "jobTitle", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Company</Label>
+                      <Input
+                        placeholder="Acme Inc."
+                        className="h-8 text-sm"
+                        value={job.company}
+                        onChange={(e) =>
+                          // @ts-ignore
+                          updateEmployment(job.id, "company", e.target.value)
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Start Date</Label>
+                      <Input
+                        type="month"
+                        className="h-8 text-sm"
+                        value={job.startDate}
+                        onChange={(e) =>
+                          // @ts-ignore
+                          updateEmployment(job.id, "startDate", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">End Date</Label>
+                      <Input
+                        type="month"
+                        className="h-8 text-sm"
+                        value={job.endDate}
+                        onChange={(e) =>
+                          // @ts-ignore
+                          updateEmployment(job.id, "endDate", e.target.value)
+                        }
+                        disabled={job.isCurrent}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`current-${job.id}`}
+                      checked={job.isCurrent}
+                      onCheckedChange={() => toggleCurrentEmployment(job.id)}
+                    />
+                    <Label
+                      htmlFor={`current-${job.id}`}
+                      className="text-xs font-normal cursor-pointer"
+                    >
+                      I currently work here
+                    </Label>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Description (optional)</Label>
+                    <Textarea
+                      placeholder="Brief description of responsibilities and achievements..."
+                      className="min-h-[60px] text-sm"
+                      value={job.description}
+                      onChange={(e) =>
+                        // @ts-ignore
+                        updateEmployment(job.id, "description", e.target.value)
+                      }
+                    />
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {errors.employmentHistory && (
+          <p className="text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {errors.employmentHistory}
+          </p>
+        )}
       </Card>
 
       {/* Skills */}
@@ -558,22 +805,20 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         <div>
           <h3 className="font-medium text-card-foreground text-sm">Skills *</h3>
           <p className="text-xs text-muted-foreground mt-1">
-            Add your skills to match with job requirements
+            Add skills to match with job requirements
           </p>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="skills" className="text-xs text-foreground">
-            Add Skill
-          </Label>
           <div className="flex gap-2">
             <Input
-              id="skills"
               placeholder="e.g., React, Python, AWS..."
               className="h-9"
               value={skillInput}
               onChange={(e) => setSkillInput(e.target.value)}
-              onKeyPress={handleSkillInputKeyPress}
+              onKeyPress={(e) =>
+                e.key === "Enter" && (e.preventDefault(), addSkill())
+              }
             />
             <Button
               variant="outline"
@@ -588,7 +833,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
 
         {profile?.skills?.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {profile.skills.map((skill, index) => (
+            {(profile.skills || []).map((skill, index) => (
               <Badge
                 key={index}
                 variant="secondary"
@@ -606,17 +851,83 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
           </div>
         )}
 
-        {profile?.skills?.length === 0 && (
-          <p
-            className={`text-xs flex items-center gap-1 ${
-              errors.skills ? "text-red-500" : "text-muted-foreground italic"
-            }`}
-          >
-            {errors.skills && <AlertCircle className="h-3 w-3" />}
-            {errors.skills ||
-              "No skills added yet. Add skills to improve job matching!"}
+        {errors.skills && (
+          <p className="text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {errors.skills}
           </p>
         )}
+      </Card>
+
+      {/* Certifications */}
+      <Card className="p-4 bg-card border-border space-y-4">
+        <div>
+          <h3 className="font-medium text-card-foreground text-sm">
+            Certifications (optional)
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Professional certifications and licenses
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <Input
+            placeholder="e.g., AWS Certified Solutions Architect"
+            className="h-9"
+            value={certInput}
+            onChange={(e) => setCertInput(e.target.value)}
+            onKeyPress={(e) =>
+              e.key === "Enter" && (e.preventDefault(), addCertification())
+            }
+          />
+          <Button
+            variant="outline"
+            className="h-9"
+            onClick={addCertification}
+            disabled={!certInput.trim()}
+          >
+            + Add
+          </Button>
+        </div>
+
+        {(profile.certifications?.length || 0) > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {profile.certifications?.map((cert, index) => (
+              <Badge
+                key={index}
+                variant="secondary"
+                className="pl-2 pr-1 py-1 flex items-center gap-1"
+              >
+                {cert}
+                <button
+                  onClick={() => removeCertification(index)}
+                  className="ml-1 hover:bg-background/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Resume Summary */}
+      <Card className="p-4 bg-card border-border space-y-4">
+        <div>
+          <h3 className="font-medium text-card-foreground text-sm">
+            Resume Summary (optional)
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Brief overview of your experience and achievements
+          </p>
+        </div>
+
+        <Textarea
+          placeholder="Experienced software engineer with 5+ years building scalable web applications..."
+          className="min-h-[100px]"
+          value={profile.resumeSummary}
+          onChange={(e) => updateField("resumeSummary", e.target.value)}
+        />
       </Card>
 
       {/* Links */}
@@ -624,8 +935,8 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         <h3 className="font-medium text-card-foreground text-sm">Links</h3>
 
         <div className="space-y-2">
-          <Label htmlFor="linkedin" className="text-xs text-foreground">
-            LinkedIn URL *
+          <Label htmlFor="linkedin" className="text-xs">
+            LinkedIn *
           </Label>
           <Input
             id="linkedin"
@@ -646,8 +957,21 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="portfolio" className="text-xs text-foreground">
-            Portfolio/Website (optional)
+          <Label htmlFor="github" className="text-xs">
+            GitHub (optional)
+          </Label>
+          <Input
+            id="github"
+            placeholder="github.com/johndoe"
+            className="h-9"
+            value={profile.github}
+            onChange={(e) => updateField("github", e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="portfolio" className="text-xs">
+            Portfolio (optional)
           </Label>
           <Input
             id="portfolio"
@@ -673,10 +997,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
               updateField("needsSponsorship", checked as boolean)
             }
           />
-          <Label
-            htmlFor="visa"
-            className="text-sm font-normal cursor-pointer text-foreground"
-          >
+          <Label htmlFor="visa" className="text-sm font-normal cursor-pointer">
             Need visa sponsorship
           </Label>
         </div>
@@ -691,7 +1012,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
           />
           <Label
             htmlFor="relocate"
-            className="text-sm font-normal cursor-pointer text-foreground"
+            className="text-sm font-normal cursor-pointer"
           >
             Willing to relocate
           </Label>
@@ -716,7 +1037,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         ) : (
           <>
             <Save className="mr-2 h-4 w-4" />
-            Save Profile {!formIsValid && "(Complete all fields)"}
+            Save Profile {!formIsValid && "(Complete required fields)"}
           </>
         )}
       </Button>

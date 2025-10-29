@@ -38,6 +38,11 @@
     "default_popup": "popup.html"
   },
   "host_permissions": [
+    "*://*.greenhouse.io/*",
+    "*://*.lever.co/*",
+    "*://*.myworkdayjobs.com/*",
+    "*://linkedin.com/jobs/*/apply/*",
+    "*://*.linkedin.com/jobs/*/apply/*",
     "*://*.linkedin.com/jobs/*",
     "*://*.linkedin.com/in/*",
     "http://localhost/*"

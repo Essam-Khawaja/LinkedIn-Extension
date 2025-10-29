@@ -118,10 +118,16 @@ export function HomeTab({
       <Card className="p-4 bg-card border-border">
         <div className="space-y-1">
           <h3 className="font-semibold text-card-foreground text-balance">
-            {profile ? profile.currentTitle : <></>}
+            {profile ? (
+              <>
+                {profile.firstName} {profile.lastName}
+              </>
+            ) : (
+              <></>
+            )}
           </h3>
           <p className="text-sm text-muted-foreground">
-            {profile ? profile.currentCompany : <></>}
+            {profile.education ? profile.education : <></>}
           </p>
         </div>
       </Card>

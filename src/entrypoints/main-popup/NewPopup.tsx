@@ -38,11 +38,7 @@ export function ExtensionPopup() {
 
           // Check if profile has required fields
           const hasRequiredFields =
-            profile.firstName &&
-            profile.lastName &&
-            profile.email &&
-            profile.currentTitle &&
-            profile.currentCompany;
+            profile.firstName && profile.lastName && profile.email;
 
           if (hasRequiredFields) {
             setProfileStatus("complete");
@@ -85,7 +81,7 @@ export function ExtensionPopup() {
 
   return (
     <div className="dark extension-popup">
-      <div className="bg-background overflow-hidden">
+      <div className="bg-background overflow-hidden no-scrollbar">
         {/* Header */}
         <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
