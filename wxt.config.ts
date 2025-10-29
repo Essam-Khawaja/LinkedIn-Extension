@@ -7,6 +7,8 @@ export default defineConfig({
   publicDir: "static",
 
   manifest: {
+    name: "SwiftApply",
+    description: "All your job application needs in one place!",
     permissions: ["tabs", "activeTab", "scripting", "storage"],
 
     // 🔹 Add background service worker (important!)

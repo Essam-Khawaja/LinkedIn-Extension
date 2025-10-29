@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "wxt-react-starter",
-  "description": "manifest.json description",
+  "name": "SwiftApply",
+  "description": "All your job application needs in one place!",
   "version": "0.0.0",
   "permissions": [
     "tabs",
