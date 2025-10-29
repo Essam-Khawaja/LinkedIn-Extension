@@ -43,6 +43,9 @@
     "*://*.myworkdayjobs.com/*",
     "*://linkedin.com/jobs/*/apply/*",
     "*://*.linkedin.com/jobs/*/apply/*",
+    "*://*.workday.com/*",
+    "*://*.icims.com/*",
+    "*://*.taleo.net/*",
     "*://*.linkedin.com/jobs/*",
     "*://*.linkedin.com/in/*",
     "http://localhost/*"

@@ -5,6 +5,7 @@ import { Settings } from "lucide-react";
 import { HomeTab } from "@/components/tabs/home-tab";
 import { ProfileTab } from "@/components/tabs/profile-tab";
 import { isProfileComplete } from "@/lib/utils/profileValidation";
+import UserProfile from "@/lib/types/user";
 
 export type HomeState = "job-detected" | "not-on-job" | "first-time";
 export type ProfileStatus = "complete" | "incomplete";
@@ -14,6 +15,7 @@ export function ExtensionPopup() {
   const [homeState, setHomeState] = useState<HomeState>("first-time");
   const [profileStatus, setProfileStatus] =
     useState<ProfileStatus>("incomplete");
+  const [profile, setProfile] = useState<UserProfile>();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -37,6 +39,7 @@ export function ExtensionPopup() {
         if (isComplete) {
           setProfileStatus("complete");
           setHomeState("job-detected"); // Or check actual page
+          setProfile(response.profile);
           setActiveTab("home"); // Switch to home if complete
         } else {
           setProfileStatus("incomplete");
@@ -126,6 +129,7 @@ export function ExtensionPopup() {
                   profileStatus={profileStatus}
                   onStateChange={setHomeState}
                   onTabChange={setActiveTab}
+                  profile={profile}
                 />
               ) : (
                 <div className="text-center py-8 text-muted-foreground">

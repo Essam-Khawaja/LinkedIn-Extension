@@ -127,7 +127,7 @@ export function HomeTab({
             )}
           </h3>
           <p className="text-sm text-muted-foreground">
-            {profile?.education ? profile.education : <></>}
+            {profile?.education ? profile.education : <>No Education</>}
           </p>
         </div>
       </Card>

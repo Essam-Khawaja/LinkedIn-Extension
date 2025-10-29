@@ -1,5 +1,4 @@
 import type UserProfile from '@/lib/types/user';
-import type { EmploymentEntry } from '@/lib/types/user';
 
 export default defineContentScript({
   matches: [
@@ -7,7 +6,10 @@ export default defineContentScript({
     '*://*.lever.co/*',
     '*://*.myworkdayjobs.com/*',
     '*://linkedin.com/jobs/*/apply/*',
-    '*://*.linkedin.com/jobs/*/apply/*'
+    '*://*.linkedin.com/jobs/*/apply/*',
+    '*://*.workday.com/*',
+    '*://*.icims.com/*',
+    '*://*.taleo.net/*'
   ],
   
   async main() {
@@ -37,10 +39,7 @@ async function handleAutoFillClick(profile: UserProfile) {
       return;
     }
     
-    // Do the auto-fill
     const result = await autoFillForm(profile);
-    
-    // Show success
     showSuccessMessage(result.filled, result.aiAnswered);
     
   } catch (error) {
@@ -61,7 +60,6 @@ function showSuccessMessage(filledCount: number, aiCount: number) {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     font-size: 14px;
-    animation: slideIn 0.3s ease-out;
   `;
   
   notification.innerHTML = `
@@ -77,11 +75,7 @@ function showSuccessMessage(filledCount: number, aiCount: number) {
   `;
   
   document.body.appendChild(notification);
-  
-  setTimeout(() => {
-    notification.style.animation = 'slideOut 0.3s ease-out';
-    setTimeout(() => notification.remove(), 300);
-  }, 3000);
+  setTimeout(() => notification.remove(), 3000);
 }
 
 interface FieldInfo {
@@ -89,214 +83,316 @@ interface FieldInfo {
   type: string | null;
   label: string;
   required: boolean;
+  confidence: number; // How confident we are about the field type (0-100)
 }
 
 function getAllFields(): FieldInfo[] {
   const fields: FieldInfo[] = [];
   
   const inputs = document.querySelectorAll<HTMLInputElement>(
-    'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="image"])'
+    'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="image"]):not([type="file"])'
   );
   const textareas = document.querySelectorAll<HTMLTextAreaElement>('textarea');
   const selects = document.querySelectorAll<HTMLSelectElement>('select');
   
   [...inputs, ...textareas, ...selects].forEach(element => {
-    const label = getFieldLabel(element);
-    const type = detectFieldType(element, label);
-    const required = isFieldRequired(element, label);
+    // Skip if already filled
+    if ('value' in element && element.value && element.value.trim() !== '') {
+      return;
+    }
+    
+    const allTextSources = getFieldTextSources(element);
+    const detection = detectFieldType(element, allTextSources);
     
     fields.push({
       element,
-      type,
-      label,
-      required
+      type: detection.type,
+      label: allTextSources.join(' | '),
+      required: isFieldRequired(element, allTextSources),
+      confidence: detection.confidence
     });
   });
 
-  console.log('Detected fields:', fields.length);
+  console.log(`Detected ${fields.length} fields`);
+  console.log('Field types:', fields.map(f => ({ type: f.type, label: f.label.substring(0, 50), confidence: f.confidence })));
   
   return fields;
 }
 
-function getFieldLabel(field: HTMLElement): string {
+/**
+ * Gets ALL possible text sources for a field
+ * Returns array of text hints from various sources
+ */
+function getFieldTextSources(field: HTMLElement): string[] {
+  const sources: string[] = [];
+  
+  // 1. Explicit label with for attribute
   if (field.id) {
     const label = document.querySelector(`label[for="${field.id}"]`);
-    if (label?.textContent) return label.textContent.trim();
+    if (label?.textContent) {
+      sources.push(label.textContent.trim());
+    }
   }
   
+  // 2. Parent label
   const parentLabel = field.closest('label');
-  if (parentLabel?.textContent) return parentLabel.textContent.trim();
+  if (parentLabel?.textContent) {
+    sources.push(parentLabel.textContent.trim());
+  }
   
+  // 3. Previous sibling that's a label or contains text
   let prev = field.previousElementSibling;
-  while (prev) {
+  let attempts = 0;
+  while (prev && attempts < 3) {
     if (prev.tagName === 'LABEL' && prev.textContent) {
-      return prev.textContent.trim();
+      sources.push(prev.textContent.trim());
+      break;
+    }
+    // Sometimes the label is just a div/span before the input
+    if (prev.textContent && prev.textContent.trim().length < 100) {
+      sources.push(prev.textContent.trim());
     }
     prev = prev.previousElementSibling;
+    attempts++;
   }
   
-  const parent = field.closest('div, fieldset, li');
+  // 4. Look in parent container
+  const parent = field.closest('div, fieldset, li, td, th');
   if (parent) {
+    // Find label elements
     const labelEl = parent.querySelector('label, legend');
-    if (labelEl?.textContent) return labelEl.textContent.trim();
+    if (labelEl?.textContent) {
+      sources.push(labelEl.textContent.trim());
+    }
+    
+    // Find spans/divs that might be labels
+    const spans = parent.querySelectorAll('span, div');
+    spans.forEach(span => {
+      const text = span.textContent?.trim();
+      if (text && text.length < 100 && text.length > 2) {
+        // Check if this span is close to our field
+        if (parent.contains(span) && parent.contains(field)) {
+          sources.push(text);
+        }
+      }
+    });
   }
   
+  // 5. Attributes
   const ariaLabel = field.getAttribute('aria-label');
-  if (ariaLabel) return ariaLabel;
+  if (ariaLabel) sources.push(ariaLabel);
   
+  const ariaLabelledBy = field.getAttribute('aria-labelledby');
+  if (ariaLabelledBy) {
+    const labelEl = document.getElementById(ariaLabelledBy);
+    if (labelEl?.textContent) sources.push(labelEl.textContent.trim());
+  }
+  
+  const title = field.getAttribute('title');
+  if (title) sources.push(title);
+  
+  // 6. Placeholder
   if ('placeholder' in field) {
     const inputElement = field as HTMLInputElement | HTMLTextAreaElement;
     if (inputElement.placeholder) {
-      return inputElement.placeholder;
+      sources.push(inputElement.placeholder);
     }
   }
   
-  return '';
+  // 7. Name and ID attributes (often have hints)
+  // @ts-ignore
+  if (field.name) sources.push(field.name);
+  if (field.id) sources.push(field.id);
+  
+  // 8. Class names (sometimes contain hints like "first-name-input")
+  if (field.className) {
+    const classHints = field.className.split(/[\s_-]/).filter(c => c.length > 2);
+    sources.push(...classHints);
+  }
+  
+  // 9. Data attributes
+  for (const attr of field.attributes) {
+    if (attr.name.startsWith('data-') && attr.value && attr.value.length < 50) {
+      sources.push(attr.value);
+    }
+  }
+  
+  // Remove duplicates and clean
+  const unique = [...new Set(sources)]
+    .map(s => s.replace(/\*/g, '').trim())
+    .filter(s => s.length > 0);
+  
+  return unique;
 }
 
+/**
+ * Detects field type with confidence score
+ */
 function detectFieldType(
   field: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-  label: string
-): string | null {
-  const searchText = label.toLowerCase();
-  const fieldName = field.name.toLowerCase();
-  const fieldId = field.id.toLowerCase();
+  textSources: string[]
+): { type: string | null; confidence: number } {
+  // Combine all text sources
+  const combinedText = textSources.join(' ').toLowerCase();
+  const fieldType = 'type' in field ? field.type : '';
+  const autocomplete = field.getAttribute('autocomplete')?.toLowerCase() || '';
   
-  const searchIn = `${searchText} ${fieldName} ${fieldId}`;
-  
-  // Basic Info
-  if (matchesKeywords(searchIn, ['first name', 'firstname', 'given name', 'fname'])) {
-    return 'firstName';
-  }
-  if (matchesKeywords(searchIn, ['last name', 'lastname', 'surname', 'family name', 'lname'])) {
-    return 'lastName';
-  }
-  if (matchesKeywords(searchIn, ['full name', 'your name', 'legal name']) && !searchIn.includes('first') && !searchIn.includes('last')) {
-    return 'fullName';
-  }
-  if (matchesKeywords(searchIn, ['email', 'e-mail', 'email address'])) {
-    return 'email';
-  }
-  if (matchesKeywords(searchIn, ['phone', 'telephone', 'mobile', 'cell', 'contact number'])) {
-    return 'phone';
-  }
-  
-  // Location
-  if (matchesKeywords(searchIn, ['street address', 'address line', 'address']) && !searchIn.includes('email')) {
-    return 'address';
-  }
-  if (matchesKeywords(searchIn, ['city', 'town'])) {
-    return 'city';
-  }
-  if (matchesKeywords(searchIn, ['state', 'province', 'region'])) {
-    return 'state';
-  }
-  if (matchesKeywords(searchIn, ['zip', 'postal code', 'postcode', 'zip code'])) {
-    return 'zip';
-  }
-  
-  // Professional
-  if (matchesKeywords(searchIn, ['job title', 'current title', 'position', 'role']) && !searchIn.includes('desired')) {
-    return 'currentTitle';
-  }
-  if (matchesKeywords(searchIn, ['company', 'employer', 'organization', 'current company'])) {
-    return 'currentCompany';
-  }
-  if (matchesKeywords(searchIn, ['years of experience', 'years experience', 'experience'])) {
-    return 'yearsExperience';
-  }
-  
-  // Education
-  if (matchesKeywords(searchIn, ['education', 'degree', 'university', 'school', 'college'])) {
-    return 'education';
-  }
-  
-  // Links
-  if (matchesKeywords(searchIn, ['linkedin', 'linkedin profile', 'linkedin url'])) {
-    return 'linkedin';
-  }
-  if (matchesKeywords(searchIn, ['github', 'github profile', 'github url'])) {
-    return 'github';
-  }
-  if (matchesKeywords(searchIn, ['portfolio', 'website', 'personal site', 'personal website'])) {
-    return 'portfolio';
-  }
-  
-  // Compensation
-  if (matchesKeywords(searchIn, ['salary', 'compensation', 'expected salary', 'salary expectation', 'desired salary'])) {
-    return 'salaryExpectation';
-  }
-  
-  // Checkboxes
-  if ('type' in field && (field.type === 'checkbox' || field.type === 'radio')) {
-    if (matchesKeywords(searchIn, ['sponsor', 'visa', 'authorized to work', 'work authorization', 'require sponsorship'])) {
-      return 'sponsorship';
-    }
-    if (matchesKeywords(searchIn, ['relocate', 'relocation', 'willing to move', 'willing to relocate'])) {
-      return 'relocation';
-    }
-    return 'checkbox-unknown';
-  }
-  
-  // Custom questions
-  if (field.tagName === 'TEXTAREA' || ('type' in field && field.type === 'text')) {
-    if (label.length > 30 || label.includes('?') || label.includes('why') || label.includes('describe') || label.includes('tell us')) {
-      return 'customQuestion';
+  // Autocomplete attribute is very reliable
+  if (autocomplete) {
+    const autocompleteMap: Record<string, string> = {
+      'given-name': 'firstName',
+      'family-name': 'lastName',
+      'name': 'fullName',
+      'email': 'email',
+      'tel': 'phone',
+      'street-address': 'address',
+      'address-line1': 'address',
+      'address-level2': 'city',
+      'address-level1': 'state',
+      'postal-code': 'zip',
+      'organization': 'currentCompany',
+      'organization-title': 'currentTitle'
+    };
+    
+    if (autocompleteMap[autocomplete]) {
+      return { type: autocompleteMap[autocomplete], confidence: 95 };
     }
   }
   
-  return null;
+  // Email field type is very reliable
+  if (fieldType === 'email') {
+    return { type: 'email', confidence: 95 };
+  }
+  
+  // Tel field type is reliable
+  if (fieldType === 'tel') {
+    return { type: 'phone', confidence: 95 };
+  }
+  
+  // Pattern matching with confidence scores
+  const patterns: Array<{ keywords: string[]; type: string; confidence: number }> = [
+    // High confidence patterns
+    { keywords: ['first name', 'firstname', 'fname', 'given name', 'forename'], type: 'firstName', confidence: 90 },
+    { keywords: ['last name', 'lastname', 'lname', 'surname', 'family name'], type: 'lastName', confidence: 90 },
+    { keywords: ['email', 'e-mail', 'emailaddress'], type: 'email', confidence: 85 },
+    { keywords: ['phone', 'telephone', 'mobile', 'phonenumber'], type: 'phone', confidence: 85 },
+    
+    // Medium confidence patterns
+    { keywords: ['full name', 'your name', 'name'], type: 'fullName', confidence: 70 },
+    { keywords: ['street', 'address line', 'address1', 'addressline'], type: 'address', confidence: 80 },
+    { keywords: ['city', 'town', 'locality'], type: 'city', confidence: 85 },
+    { keywords: ['state', 'province', 'region'], type: 'state', confidence: 80 },
+    { keywords: ['zip', 'postal', 'postcode', 'zipcode'], type: 'zip', confidence: 85 },
+    
+    // Professional
+    { keywords: ['job title', 'position', 'role', 'jobtitle'], type: 'currentTitle', confidence: 75 },
+    { keywords: ['company', 'employer', 'organization', 'companyname'], type: 'currentCompany', confidence: 75 },
+    { keywords: ['years experience', 'yearsexperience', 'experience years'], type: 'yearsExperience', confidence: 80 },
+    
+    // Education & Links
+    { keywords: ['education', 'degree', 'university', 'school'], type: 'education', confidence: 75 },
+    { keywords: ['linkedin', 'linkedin profile', 'linkedinurl'], type: 'linkedin', confidence: 90 },
+    { keywords: ['github', 'github profile', 'githuburl'], type: 'github', confidence: 90 },
+    { keywords: ['portfolio', 'website', 'personal site'], type: 'portfolio', confidence: 75 },
+    { keywords: ['salary', 'compensation', 'expected salary', 'desiredsalary'], type: 'salaryExpectation', confidence: 80 },
+    
+    // Checkboxes
+    { keywords: ['sponsor', 'visa', 'authorization', 'work auth'], type: 'sponsorship', confidence: 85 },
+    { keywords: ['relocate', 'relocation', 'willing to move'], type: 'relocation', confidence: 85 },
+  ];
+  
+  // Check patterns
+  for (const pattern of patterns) {
+    for (const keyword of pattern.keywords) {
+      if (combinedText.includes(keyword.toLowerCase())) {
+        // Boost confidence if multiple sources mention it
+        const matchCount = textSources.filter(s => 
+          s.toLowerCase().includes(keyword.toLowerCase())
+        ).length;
+        const boostedConfidence = Math.min(100, pattern.confidence + (matchCount * 5));
+        
+        return { type: pattern.type, confidence: boostedConfidence };
+      }
+    }
+  }
+  
+  // Check for custom questions (textareas with question-like text)
+  if (field.tagName === 'TEXTAREA' || fieldType === 'text') {
+    const hasQuestionMark = textSources.some(s => s.includes('?'));
+    const hasQuestionWords = textSources.some(s => 
+      /\b(why|how|what|describe|tell|explain)\b/i.test(s)
+    );
+    const isLongLabel = textSources.some(s => s.length > 30);
+    
+    if (hasQuestionMark || (hasQuestionWords && isLongLabel)) {
+      return { type: 'customQuestion', confidence: 70 };
+    }
+  }
+  
+  return { type: null, confidence: 0 };
 }
 
 function matchesKeywords(text: string, keywords: string[]): boolean {
-  return keywords.some(keyword => text.includes(keyword));
+  const textLower = text.toLowerCase().replace(/[\s_-]/g, '');
+  return keywords.some(keyword => 
+    textLower.includes(keyword.toLowerCase().replace(/[\s_-]/g, ''))
+  );
 }
 
-function isFieldRequired(field: HTMLElement, label: string): boolean {
+function isFieldRequired(field: HTMLElement, textSources: string[]): boolean {
   if ('required' in field && field.required) return true;
   if (field.getAttribute('aria-required') === 'true') return true;
-  if (label.includes('*')) return true;
-  if (label.toLowerCase().includes('required')) return true;
-  return false;
+  
+  return textSources.some(text => 
+    text.includes('*') || 
+    text.toLowerCase().includes('required') ||
+    text.toLowerCase().includes('mandatory')
+  );
 }
 
 async function autoFillForm(profile: UserProfile) {
   const fields = getAllFields();
   
+  // Sort by confidence (fill high-confidence fields first)
+  fields.sort((a, b) => b.confidence - a.confidence);
+  
   let filledCount = 0;
   let aiAnsweredCount = 0;
   const customQuestions: FieldInfo[] = [];
   
-  // First pass: fill all standard fields
+  // First pass: fill standard fields
   for (const fieldInfo of fields) {
     if (!fieldInfo.type) continue;
     
-    // Collect custom questions for AI later
     if (fieldInfo.type === 'customQuestion') {
       customQuestions.push(fieldInfo);
       continue;
     }
     
-    // Fill standard fields
-    const success = fillField(fieldInfo, profile);
-    if (success) {
-      console.log(`Filled: ${fieldInfo.type}`);
-      filledCount++;
+    // Only fill if confidence is reasonable (>= 60)
+    if (fieldInfo.confidence >= 60) {
+      const success = fillField(fieldInfo, profile);
+      if (success) {
+        console.log(`Filled: ${fieldInfo.type} (confidence: ${fieldInfo.confidence})`);
+        filledCount++;
+      }
     }
   }
   
   console.log(`Filled ${filledCount} standard fields`);
   
-  // Second pass: use AI for custom questions (if available)
+  // Second pass: AI for custom questions
   if (customQuestions.length > 0) {
     console.log(`Found ${customQuestions.length} custom questions`);
     const jobContext = extractJobContext();
     
     for (const fieldInfo of customQuestions) {
-      const answer = await answerCustomQuestion(fieldInfo.label, profile, jobContext);
-      if (answer) {
-        fillTextField(fieldInfo.element as HTMLInputElement | HTMLTextAreaElement, answer);
-        aiAnsweredCount++;
+      if (fieldInfo.confidence >= 60) {
+        const answer = await answerCustomQuestion(fieldInfo.label, profile, jobContext);
+        if (answer) {
+          fillTextField(fieldInfo.element as HTMLInputElement | HTMLTextAreaElement, answer);
+          aiAnsweredCount++;
+        }
       }
     }
   }
@@ -313,7 +409,6 @@ function fillField(fieldInfo: FieldInfo, profile: UserProfile): boolean {
   const value = getValueForFieldType(type, profile);
   if (value === null || value === undefined || value === '') return false;
   
-  // Fill based on element type
   if (element.tagName === 'SELECT') {
     return fillSelect(element as HTMLSelectElement, value);
   } else if ('type' in element && element.type === 'checkbox') {
@@ -328,42 +423,28 @@ function fillField(fieldInfo: FieldInfo, profile: UserProfile): boolean {
 function getValueForFieldType(type: string | null, profile: UserProfile): any {
   if (!type) return null;
   
-  // Get current job if employment history exists
   const currentJob = (profile.employmentHistory || []).find(job => job.isCurrent);
-  const mostRecentJob = (profile.employmentHistory || [])[0]; // First entry
+  const mostRecentJob = (profile.employmentHistory || [])[0];
   const jobToUse = currentJob || mostRecentJob;
   
   const valueMap: Record<string, any> = {
-    // Basic
     firstName: profile.firstName,
     lastName: profile.lastName,
     fullName: `${profile.firstName} ${profile.lastName}`,
     email: profile.email,
     phone: profile.phone,
-    
-    // Location
     address: profile.address,
     city: profile.city,
     state: profile.state,
     zip: profile.zip,
-    
-    // Professional (use employment history if available, fallback to old fields)
     currentTitle: jobToUse?.jobTitle || '',
     currentCompany: jobToUse?.company || '',
     yearsExperience: profile.yearsExperience,
-    
-    // Education
     education: profile.education,
-    
-    // Links
     linkedin: profile.linkedin,
     github: profile.github,
     portfolio: profile.portfolio,
-    
-    // Compensation
     salaryExpectation: profile.salaryExpectation,
-    
-    // Preferences
     sponsorship: profile.needsSponsorship ? 'yes' : 'no',
     relocation: profile.willingToRelocate ? 'yes' : 'no',
   };
@@ -371,24 +452,27 @@ function getValueForFieldType(type: string | null, profile: UserProfile): any {
   return valueMap[type];
 }
 
-function fillTextField(
-  field: HTMLInputElement | HTMLTextAreaElement,
-  value: string
-): boolean {
+function fillTextField(field: HTMLInputElement | HTMLTextAreaElement, value: string): boolean {
   field.value = value;
-  triggerInputEvents(field);
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  field.dispatchEvent(new Event('change', { bubbles: true }));
+  field.dispatchEvent(new Event('blur', { bubbles: true }));
+  
+  // React fix
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+  if (nativeInputValueSetter) {
+    nativeInputValueSetter.call(field, value);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  
   return true;
 }
 
 function fillSelect(select: HTMLSelectElement, value: any): boolean {
   const options = Array.from(select.options);
   
-  // Try exact match
-  let match = options.find(opt => 
-    opt.value === value || opt.text === value
-  );
+  let match = options.find(opt => opt.value === value || opt.text === value);
   
-  // Try fuzzy match
   if (!match) {
     const valueLower = value.toString().toLowerCase();
     match = options.find(opt => 
@@ -397,14 +481,13 @@ function fillSelect(select: HTMLSelectElement, value: any): boolean {
     );
   }
   
-  // Try numeric match (for years of experience)
   if (!match && !isNaN(value)) {
     match = options.find(opt => opt.value === value.toString());
   }
   
   if (match) {
     select.value = match.value;
-    triggerInputEvents(select);
+    select.dispatchEvent(new Event('change', { bubbles: true }));
     return true;
   }
   
@@ -414,7 +497,7 @@ function fillSelect(select: HTMLSelectElement, value: any): boolean {
 function fillCheckbox(checkbox: HTMLInputElement, value: any): boolean {
   const shouldCheck = value === true || value === 'yes' || value === 'true';
   checkbox.checked = shouldCheck;
-  triggerInputEvents(checkbox);
+  checkbox.dispatchEvent(new Event('change', { bubbles: true }));
   return true;
 }
 
@@ -423,50 +506,29 @@ function fillRadio(radio: HTMLInputElement, value: any): boolean {
   const valueLower = value.toString().toLowerCase();
   
   const match = Array.from(radios).find(r => {
-    const label = getFieldLabel(r).toLowerCase();
-    return label.includes(valueLower) || r.value.toLowerCase() === valueLower;
+    const sources = getFieldTextSources(r);
+    return sources.some(s => s.toLowerCase().includes(valueLower));
   });
   
   if (match) {
     match.checked = true;
-    triggerInputEvents(match);
+    match.dispatchEvent(new Event('change', { bubbles: true }));
     return true;
   }
   
   return false;
 }
 
-function triggerInputEvents(element: HTMLElement) {
-  const events = [
-    new Event('input', { bubbles: true }),
-    new Event('change', { bubbles: true }),
-    new Event('blur', { bubbles: true }),
-  ];
-  
-  events.forEach(event => element.dispatchEvent(event));
-  
-  // Special handling for React
-  if ('value' in element) {
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      'value'
-    )?.set;
-    
-    if (nativeInputValueSetter) {
-      nativeInputValueSetter.call(element, (element as any).value);
-      element.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  }
-}
-
 function extractJobContext() {
   const title = 
     document.querySelector('h1')?.textContent ||
     document.querySelector('[class*="job-title"]')?.textContent ||
+    document.querySelector('[class*="JobTitle"]')?.textContent ||
     'this position';
     
   const company = 
     document.querySelector('[class*="company"]')?.textContent ||
+    document.querySelector('[class*="Company"]')?.textContent ||
     'this company';
 
   return {
@@ -480,18 +542,14 @@ async function answerCustomQuestion(
   profile: UserProfile,
   jobContext: { title: string; company: string }
 ): Promise<string | null> {
-  // Get current or most recent job
   const currentJob = (profile.employmentHistory || []).find(job => job.isCurrent);
   const mostRecentJob = (profile.employmentHistory || [])[0];
   const jobToReference = currentJob || mostRecentJob;
   
   const currentRole = jobToReference?.jobTitle || 'Not specified';
   const currentCompany = jobToReference?.company || '';
-  
-  // Build skills string
   const skillsStr = (profile.skills || []).join(', ') || 'Not specified';
   
-  // Build experience summary from employment history
   let experienceSummary = '';
   if (profile.employmentHistory && profile.employmentHistory.length > 0) {
     experienceSummary = profile.employmentHistory.slice(0, 2).map(job => 
@@ -516,16 +574,10 @@ ${profile.education ? `- Education: ${profile.education}` : ''}
 Provide only the answer, no preamble or explanation. Be specific and relevant to both the question and the job.`;
 
   try {
-    // @ts-ignore - Chrome AI API
+    // @ts-ignore
     const availability = await ai.languageModel.availability();
-
-    if (availability === 'no') {
-      console.warn("Gemini Nano not available");
-      return null;
-    }
-
+    if (availability === 'no') return null;
     if (availability === 'after-download') {
-      console.log("Triggering Gemini Nano download");
       // @ts-ignore
       await ai.languageModel.create();
       return null;
@@ -534,7 +586,6 @@ Provide only the answer, no preamble or explanation. Be specific and relevant to
     // @ts-ignore
     const session = await ai.languageModel.create();
     const result = await session.prompt(prompt);
-    
     session.destroy();
     return result.trim();
   } catch (error) {
