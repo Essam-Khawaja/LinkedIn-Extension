@@ -24,7 +24,7 @@ interface HomeTabProps {
   profileStatus: ProfileStatus;
   onStateChange: (state: HomeState) => void;
   onTabChange: (tab: string) => void;
-  profile: UserProfile;
+  profile?: UserProfile;
 }
 
 export function HomeTab({
@@ -127,7 +127,7 @@ export function HomeTab({
             )}
           </h3>
           <p className="text-sm text-muted-foreground">
-            {profile.education ? profile.education : <></>}
+            {profile?.education ? profile.education : <></>}
           </p>
         </div>
       </Card>

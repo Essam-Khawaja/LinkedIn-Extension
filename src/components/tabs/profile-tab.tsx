@@ -20,7 +20,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import type UserProfile from "@/lib/types/user";
-import type EmploymentEntry from "@/lib/types/user";
+import type { EmploymentEntry } from "@/lib/types/user";
 
 interface ValidationErrors {
   firstName?: string;
@@ -42,7 +42,6 @@ interface ProfileTabProps {
 }
 
 export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
-  // @ts-ignore
   const [profile, setProfile] = useState<UserProfile>({
     firstName: "",
     lastName: "",
@@ -147,10 +146,6 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
     newErrors.zip = validateRequired(profile.zip, "ZIP code");
     newErrors.linkedin = validateURL(profile.linkedin, "LinkedIn");
 
-    if ((profile.employmentHistory || []).length === 0) {
-      newErrors.employmentHistory = "Please add at least one employment entry";
-    }
-
     if (profile.github && !profile.github.includes("github.com")) {
       newErrors.github = "Please enter a valid GitHub URL";
     }
@@ -184,7 +179,6 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
       profile.state,
       profile.zip,
       profile.linkedin,
-      (profile.employmentHistory || []).length > 0,
       (profile.skills || []).length > 0,
     ];
 
@@ -194,6 +188,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
       profile.github,
       profile.portfolio,
       (profile.certifications || []).length > 0,
+      (profile.employmentHistory || []).length > 0,
       profile.salaryExpectation,
     ];
 
@@ -298,9 +293,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
 
   // Employment History Management
   function addEmployment() {
-    // @ts-ignore
     const newEntry: EmploymentEntry = {
-      // @ts-ignore
       id: Date.now().toString(),
       jobTitle: "",
       company: "",
@@ -309,7 +302,6 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
       isCurrent: false,
       description: "",
     };
-    //@ts-ignore
     setProfile((prev) => ({
       ...prev,
       employmentHistory: [...(prev.employmentHistory || []), newEntry],
@@ -373,8 +365,8 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
       if (Object.keys(validationErrors).length > 0) {
         const firstErrorField = Object.keys(validationErrors)[0];
         const element = document.getElementById(firstErrorField);
-        element?.scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
+        // element?.scrollIntoView({ behavior: "smooth", block: "center" });
+        // return;
       }
 
       setIsSaving(true);
@@ -409,7 +401,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
   }
 
   return (
-    <div className="space-y-6 overflow-hidden">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
           <span>⚙️</span>
@@ -655,10 +647,10 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-medium text-card-foreground text-sm">
-              Employment History *
+              Employment History (optional)
             </h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Add your work experience (at least one required)
+              Add your work experience to improve applications
             </p>
           </div>
           <Button
@@ -673,10 +665,12 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         </div>
 
         {profile.employmentHistory?.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Briefcase className="h-12 w-12 mx-auto mb-2 opacity-50" />
+          <div className="text-center py-6 text-muted-foreground">
+            <Briefcase className="h-10 w-10 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No employment history added yet</p>
-            <p className="text-xs mt-1">Click "Add Job" to get started</p>
+            <p className="text-xs mt-1">
+              Add work experience to strengthen your applications
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -713,7 +707,6 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
                         className="h-8 text-sm"
                         value={job.jobTitle}
                         onChange={(e) =>
-                          // @ts-ignore
                           updateEmployment(job.id, "jobTitle", e.target.value)
                         }
                       />
@@ -725,7 +718,6 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
                         className="h-8 text-sm"
                         value={job.company}
                         onChange={(e) =>
-                          // @ts-ignore
                           updateEmployment(job.id, "company", e.target.value)
                         }
                       />
@@ -740,7 +732,6 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
                         className="h-8 text-sm"
                         value={job.startDate}
                         onChange={(e) =>
-                          // @ts-ignore
                           updateEmployment(job.id, "startDate", e.target.value)
                         }
                       />
@@ -752,7 +743,6 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
                         className="h-8 text-sm"
                         value={job.endDate}
                         onChange={(e) =>
-                          // @ts-ignore
                           updateEmployment(job.id, "endDate", e.target.value)
                         }
                         disabled={job.isCurrent}
@@ -781,7 +771,6 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
                       className="min-h-[60px] text-sm"
                       value={job.description}
                       onChange={(e) =>
-                        // @ts-ignore
                         updateEmployment(job.id, "description", e.target.value)
                       }
                     />
@@ -790,13 +779,6 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
               </Card>
             ))}
           </div>
-        )}
-
-        {errors.employmentHistory && (
-          <p className="text-xs text-red-500 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            {errors.employmentHistory}
-          </p>
         )}
       </Card>
 
@@ -1022,7 +1004,7 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
       <Button
         className="w-full h-11 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground disabled:opacity-50"
         onClick={handleSave}
-        disabled={isSaving || !formIsValid}
+        disabled={isSaving}
       >
         {isSaving ? (
           <>
@@ -1037,14 +1019,17 @@ export function ProfileTab({ onProfileComplete }: ProfileTabProps) {
         ) : (
           <>
             <Save className="mr-2 h-4 w-4" />
-            Save Profile {!formIsValid && "(Complete required fields)"}
+            Save Profile
+            {/* {!formIsValid && "(Complete required fields)"} */}
           </>
         )}
       </Button>
 
       {saveSuccess && (
-        <div className="text-center text-sm text-green-600 dark:text-green-400">
-          Profile saved successfully! You can now use all features.
+        <div>
+          {formIsValid
+            ? "✅ Profile saved! You can now access all features."
+            : "💾 Progress saved! Complete all required fields to access the Home tab."}
         </div>
       )}
 

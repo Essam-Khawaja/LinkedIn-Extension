@@ -1,71 +1,71 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import { HomeTab } from "@/components/tabs/home-tab";
-import { ToolsTab } from "@/components/tabs/tools-tab";
 import { ProfileTab } from "@/components/tabs/profile-tab";
-import UserProfile from "@/lib/types/user";
+import { isProfileComplete } from "@/lib/utils/profileValidation";
 
 export type HomeState = "job-detected" | "not-on-job" | "first-time";
 export type ProfileStatus = "complete" | "incomplete";
 
 export function ExtensionPopup() {
-  const [darkMode, setDarkMode] = useState(true);
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab, setActiveTab] = useState("profile"); // Start on profile
   const [homeState, setHomeState] = useState<HomeState>("first-time");
   const [profileStatus, setProfileStatus] =
     useState<ProfileStatus>("incomplete");
   const [isLoading, setIsLoading] = useState(true);
-  const [profile, setProfile] = useState<UserProfile>();
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        setIsLoading(true);
-
-        const response = await browser.runtime.sendMessage({
-          type: "GET_PROFILE",
-        });
-
-        console.log("Profile response:", response);
-
-        if (response?.ok && response.profile) {
-          // Profile exists and is valid
-          const profile: UserProfile = response.profile;
-
-          // Check if profile has required fields
-          const hasRequiredFields =
-            profile.firstName && profile.lastName && profile.email;
-
-          if (hasRequiredFields) {
-            setProfileStatus("complete");
-            setHomeState("job-detected"); // Or "not-on-job" based on current page
-            setProfile(profile);
-          } else {
-            setProfileStatus("incomplete");
-            setHomeState("first-time");
-          }
-        } else {
-          // No profile exists
-          setProfileStatus("incomplete");
-          setHomeState("first-time");
-        }
-      } catch (err) {
-        console.error("Failed to fetch profile:", err);
-        setProfileStatus("incomplete");
-        setHomeState("first-time");
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchData();
+    checkProfileStatus();
   }, []);
 
-  // Show loading state while checking profile
+  async function checkProfileStatus() {
+    try {
+      setIsLoading(true);
+
+      const response = await chrome.runtime.sendMessage({
+        type: "GET_PROFILE",
+      });
+
+      console.log("Profile check response:", response);
+
+      if (response?.ok && response.profile) {
+        // Use validation helper to check completeness
+        const isComplete = isProfileComplete(response.profile);
+
+        if (isComplete) {
+          setProfileStatus("complete");
+          setHomeState("job-detected"); // Or check actual page
+          setActiveTab("home"); // Switch to home if complete
+        } else {
+          setProfileStatus("incomplete");
+          setHomeState("first-time");
+          setActiveTab("profile"); // Stay on profile
+        }
+      } else {
+        // No profile exists
+        setProfileStatus("incomplete");
+        setHomeState("first-time");
+        setActiveTab("profile");
+      }
+    } catch (err) {
+      console.error("Failed to check profile:", err);
+      setProfileStatus("incomplete");
+      setHomeState("first-time");
+      setActiveTab("profile");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function handleProfileComplete() {
+    // Profile was saved and is now complete
+    setProfileStatus("complete");
+    setHomeState("job-detected");
+    setActiveTab("home"); // Auto-switch to home
+  }
+
   if (isLoading) {
     return (
       <div className="dark extension-popup">
@@ -76,12 +76,9 @@ export function ExtensionPopup() {
     );
   }
 
-  // If first time, force profile tab
-  const currentTab = homeState === "first-time" ? "profile" : activeTab;
-
   return (
     <div className="dark extension-popup">
-      <div className="bg-background overflow-hidden no-scrollbar">
+      <div className="bg-background overflow-hidden">
         {/* Header */}
         <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -98,11 +95,7 @@ export function ExtensionPopup() {
         </div>
 
         {/* Tabs */}
-        <Tabs
-          value={currentTab}
-          onValueChange={setActiveTab}
-          className="w-full"
-        >
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full grid grid-cols-2 rounded-none border-b border-border bg-card h-12">
             <TabsTrigger
               value="home"
@@ -110,34 +103,41 @@ export function ExtensionPopup() {
               disabled={profileStatus === "incomplete"}
             >
               Home
+              {profileStatus === "incomplete" && (
+                <span className="ml-1.5 text-xs">🔒</span>
+              )}
             </TabsTrigger>
             <TabsTrigger
               value="profile"
               className="data-[state=active]:bg-muted"
             >
-              Profile {profileStatus === "incomplete" && "⚠️"}
+              Profile
+              {profileStatus === "incomplete" && (
+                <span className="ml-1.5 text-xs text-amber-500">⚠️</span>
+              )}
             </TabsTrigger>
           </TabsList>
 
           <div className="max-h-[500px] overflow-y-auto">
             <TabsContent value="home" className="m-0 p-4">
-              <HomeTab
-                state={homeState}
-                profileStatus={profileStatus}
-                onStateChange={setHomeState}
-                onTabChange={setActiveTab}
-                profile={profile!}
-              />
+              {profileStatus === "complete" ? (
+                <HomeTab
+                  state={homeState}
+                  profileStatus={profileStatus}
+                  onStateChange={setHomeState}
+                  onTabChange={setActiveTab}
+                />
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p className="text-sm">
+                    Complete your profile to access features
+                  </p>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="profile" className="m-0 p-4">
-              <ProfileTab
-                onProfileComplete={() => {
-                  setProfileStatus("complete");
-                  setHomeState("job-detected");
-                  setActiveTab("home"); // Switch to home tab after saving
-                }}
-              />
+              <ProfileTab onProfileComplete={handleProfileComplete} />
             </TabsContent>
           </div>
         </Tabs>
