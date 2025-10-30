@@ -23,7 +23,7 @@ import type {
   ProfileStatus,
 } from "@/entrypoints/main-popup/NewPopup";
 import { Link } from "react-router-dom";
-import UserProfile from "@/lib/types/user";
+import type UserProfile from "@/lib/types/user";
 import {
   getApplications,
   getApplicationStats,
@@ -226,7 +226,7 @@ export function HomeTab({
             className="h-full w-full flex justify-start items-center"
           >
             <FileText className="mr-3 h-5 w-5 text-primary flex-shrink-0" />
-            <span className="flex-1">Find a Job</span>
+            <span className="flex-1">Find or Apply to a Job</span>
           </Link>
         </Button>
 
@@ -239,7 +239,7 @@ export function HomeTab({
             className="h-full w-full flex justify-start items-center"
           >
             <Bot className="mr-3 h-5 w-5 flex-shrink-0" />
-            <span className="flex-1">Auto-Fill Application</span>
+            <span className="flex-1">Auto-Fill Application (beta)</span>
           </Link>
         </Button>
       </div>
@@ -292,11 +292,11 @@ export function HomeTab({
             {applications.slice(0, 5).map((app) => (
               <div
                 key={app.id}
-                className="flex items-center justify-between text-xs p-2 rounded hover:bg-background/50 transition-colors group"
+                className="flex items-start justify-between text-xs p-3 rounded-lg hover:bg-background/80 transition-colors group border border-border/50"
               >
-                <div className="flex-1 min-w-0 mr-2">
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-medium text-foreground truncate">
+                <div className="flex-1 min-w-0 mr-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-semibold text-foreground truncate text-sm">
                       {app.jobTitle}
                     </p>
                     {app.jobUrl && (
@@ -304,17 +304,17 @@ export function HomeTab({
                         href={app.jobUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-primary hover:text-primary/80"
+                        className="text-primary hover:text-primary/80 flex-shrink-0"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <ExternalLink className="w-3 h-3" />
+                        <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                     )}
                   </div>
-                  <p className="text-muted-foreground truncate">
+                  <p className="text-muted-foreground truncate mb-1">
                     {app.company}
                   </p>
-                  <p className="text-muted-foreground/70 text-[10px] mt-0.5">
+                  <p className="text-muted-foreground/70 text-[10px]">
                     Applied{" "}
                     {new Date(app.appliedDate).toLocaleDateString("en-US", {
                       month: "short",
@@ -322,7 +322,7 @@ export function HomeTab({
                     })}
                   </p>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <Select
                     value={app.status}
                     onValueChange={(value) =>
@@ -330,13 +330,13 @@ export function HomeTab({
                     }
                   >
                     <SelectTrigger
-                      className={`w-[110px] h-7 text-[10px] ${getStatusColor(
+                      className={`w-[110px] h-8 text-[11px] border ${getStatusColor(
                         app.status
                       )}`}
                     >
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-popover border-border">
                       <SelectItem value="pending" className="text-xs">
                         Pending
                       </SelectItem>
@@ -357,10 +357,10 @@ export function HomeTab({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                    className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
                     onClick={() => handleDeleteApplication(app.id)}
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               </div>
@@ -371,28 +371,28 @@ export function HomeTab({
 
       {/* Application Stats Summary */}
       {stats && stats.total > 0 && (
-        <div className="grid grid-cols-3 gap-2">
-          <Card className="p-2 bg-card/50 border-border">
-            <p className="text-[10px] text-muted-foreground text-center">
+        <div className="grid grid-cols-3 gap-3">
+          <Card className="p-3 bg-gradient-to-br from-card to-card/50 border-border hover:border-primary/50 transition-colors">
+            <p className="text-xs text-muted-foreground mb-1 font-medium">
               Pending
             </p>
-            <p className="text-lg font-bold text-center text-foreground">
+            <p className="text-2xl font-bold text-foreground">
               {stats.byStatus.pending}
             </p>
           </Card>
-          <Card className="p-2 bg-card/50 border-border">
-            <p className="text-[10px] text-muted-foreground text-center">
+          <Card className="p-3 bg-gradient-to-br from-card to-card/50 border-border hover:border-primary/50 transition-colors">
+            <p className="text-xs text-muted-foreground mb-1 font-medium">
               Viewed
             </p>
-            <p className="text-lg font-bold text-center text-foreground">
+            <p className="text-2xl font-bold text-foreground">
               {stats.byStatus.viewed}
             </p>
           </Card>
-          <Card className="p-2 bg-card/50 border-border">
-            <p className="text-[10px] text-muted-foreground text-center">
+          <Card className="p-3 bg-gradient-to-br from-card to-card/50 border-border hover:border-primary/50 transition-colors">
+            <p className="text-xs text-muted-foreground mb-1 font-medium">
               Interview
             </p>
-            <p className="text-lg font-bold text-center text-foreground">
+            <p className="text-2xl font-bold text-foreground">
               {stats.byStatus.interviewing}
             </p>
           </Card>
