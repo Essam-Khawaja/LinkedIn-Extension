@@ -38,6 +38,8 @@ import {
   saveApplication,
   applicationExists,
 } from "@/lib/utils/applicationStorage";
+import { calculateProfileMatch } from "@/lib/utils/profileMatch";
+import UserProfile from "@/lib/types/user";
 
 interface JobData {
   title: string;
@@ -130,6 +132,7 @@ export default function JobSummarizer() {
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [alreadyExists, setAlreadyExists] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Check if application already exists when data loads
   useEffect(() => {
@@ -145,6 +148,23 @@ export default function JobSummarizer() {
     }
     checkExists();
   }, [scrapedData]);
+
+  // Load user profile
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: "GET_PROFILE",
+        });
+        if (response?.ok && response.profile) {
+          setUserProfile(response.profile);
+        }
+      } catch (error) {
+        console.error("Failed to load profile:", error);
+      }
+    }
+    loadProfile();
+  }, []);
 
   async function handleGenerateCoverLetter() {
     setIsGenerating(true);
@@ -278,11 +298,13 @@ export default function JobSummarizer() {
   const requirements = scrapedData.requirements || [];
   const skills = scrapedData.skills || [];
 
-  // Calculate average skill match if skills exist
-  const avgMatch =
-    skills.length > 0
-      ? Math.round(skills.reduce((acc, s) => acc + s.match, 0) / skills.length)
-      : 0;
+  // Calculate profile match
+  const profileMatch = calculateProfileMatch(
+    jobData,
+    requirements,
+    skills,
+    userProfile || undefined
+  );
 
   // Show cover letter view if active
   if (showCoverLetter) {
@@ -397,9 +419,9 @@ export default function JobSummarizer() {
                   <Briefcase className="w-4 h-4 text-primary" />
                   Job Analysis
                 </CardTitle>
-                {/* <CardDescription className="text-xs">
+                <CardDescription className="text-xs">
                   AI-powered job analysis with skill matching
-                </CardDescription> */}
+                </CardDescription>
               </div>
             </div>
             <Badge
@@ -503,31 +525,104 @@ export default function JobSummarizer() {
 
           <Separator />
 
-          {/* Overall Match Score */}
-          {skills.length > 0 && (
-            <>
-              <div className="space-y-2 bg-secondary/50 p-3 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-medium text-sm">Overall Match</h4>
-                  <span className="text-2xl font-bold text-primary">
-                    {avgMatch}%
-                  </span>
-                </div>
-                <div className="w-full bg-secondary rounded-full h-2">
-                  <div
-                    className="bg-primary h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${avgMatch}%` }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Based on your profile skills vs job requirements
-                </p>
+          {/* Profile Match Score */}
+          <div className="space-y-3 bg-secondary/50 p-3 rounded-lg">
+            <div className="flex justify-between items-center">
+              <h4 className="font-medium text-sm">Profile Match</h4>
+              <span className="text-2xl font-bold text-primary">
+                {profileMatch.score}%
+              </span>
+            </div>
+            <div className="w-full bg-secondary rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  profileMatch.score >= 70
+                    ? "bg-green-500"
+                    : profileMatch.score >= 40
+                    ? "bg-yellow-500"
+                    : "bg-red-500"
+                }`}
+                style={{ width: `${profileMatch.score}%` }}
+              />
+            </div>
+
+            {/* Profile Checks */}
+            <div className="space-y-1.5 pt-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">
+                  Relevant Experience
+                </span>
+                <span
+                  className={
+                    profileMatch.checks.hasRelevantExperience
+                      ? "text-green-500"
+                      : "text-red-500"
+                  }
+                >
+                  {profileMatch.checks.hasRelevantExperience ? "✓ Yes" : "✗ No"}
+                </span>
               </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Education Match</span>
+                <span
+                  className={
+                    profileMatch.checks.meetsEducation
+                      ? "text-green-500"
+                      : "text-red-500"
+                  }
+                >
+                  {profileMatch.checks.meetsEducation ? "✓ Yes" : "✗ No"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">
+                  Location Compatible
+                </span>
+                <span
+                  className={
+                    profileMatch.checks.locationMatch
+                      ? "text-green-500"
+                      : "text-red-500"
+                  }
+                >
+                  {profileMatch.checks.locationMatch ? "✓ Yes" : "✗ No"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Key Skills Listed</span>
+                <span
+                  className={
+                    profileMatch.checks.hasKeySkills.found > 0
+                      ? "text-green-500"
+                      : "text-red-500"
+                  }
+                >
+                  {profileMatch.checks.hasKeySkills.found}/
+                  {profileMatch.checks.hasKeySkills.total}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Why You're a Good Fit */}
+          {profileMatch.strengths.length > 0 && (
+            <>
               <Separator />
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm">Why You're a Good Fit</h4>
+                <div className="space-y-1.5">
+                  {profileMatch.strengths.map((strength, index) => (
+                    <div key={index} className="flex items-start gap-2 text-xs">
+                      <CheckCircle className="w-3 h-3 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>{strength}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </>
           )}
 
-          {/* Key Requirements */}
+          <Separator />
           {requirements.length > 0 && (
             <>
               <div className="space-y-2">
