@@ -1,23 +1,21 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  FileText,
-  PenLine,
-  Bot,
-  ExternalLink,
-  CheckCircle2,
-  AlertCircle,
-} from "lucide-react";
+import { FileText, Bot, CheckCircle2, ExternalLink } from "lucide-react";
 import type {
   HomeState,
   ProfileStatus,
 } from "@/entrypoints/main-popup/NewPopup";
 import { Link } from "react-router-dom";
-import { useEffect } from "react";
 import UserProfile from "@/lib/types/user";
+import {
+  getApplications,
+  getApplicationStats,
+} from "@/lib/utils/applicationStorage";
+import type { Application, ApplicationStats } from "@/lib/types/application";
 
 interface HomeTabProps {
   state: HomeState;
@@ -34,6 +32,33 @@ export function HomeTab({
   onTabChange,
   profile,
 }: HomeTabProps) {
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [stats, setStats] = useState<ApplicationStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadApplications();
+
+    // Poll for updates every 2 seconds when tab is visible
+    const interval = setInterval(loadApplications, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function loadApplications() {
+    try {
+      const [apps, appStats] = await Promise.all([
+        getApplications(),
+        getApplicationStats(),
+      ]);
+      setApplications(apps);
+      setStats(appStats);
+    } catch (error) {
+      console.error("Failed to load applications:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   function handleApplyClick() {
     chrome.tabs
       .query({ active: true, currentWindow: true })
@@ -41,19 +66,15 @@ export function HomeTab({
         if (!tab?.id) return;
 
         try {
-          // First, try to send a message to see if content script is already loaded
           await chrome.tabs.sendMessage(tab.id, { action: "ping" });
-          // If successful, send the actual message
           chrome.tabs.sendMessage(tab.id, { action: "start-auto-fill" });
         } catch (error) {
-          // Content script not loaded, inject it first
           try {
             await chrome.scripting.executeScript({
               target: { tabId: tab.id },
-              files: ["content-scripts/content.js"], // Adjust path based on your build output
+              files: ["content-scripts/content.js"],
             });
 
-            // Give it a moment to initialize, then send message
             setTimeout(() => {
               chrome.tabs.sendMessage(tab.id!, { action: "start-auto-fill" });
             }, 100);
@@ -62,6 +83,23 @@ export function HomeTab({
           }
         }
       });
+  }
+
+  function getStatusColor(status: Application["status"]) {
+    switch (status) {
+      case "pending":
+        return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20";
+      case "viewed":
+        return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+      case "interviewing":
+        return "bg-purple-500/10 text-purple-500 border-purple-500/20";
+      case "rejected":
+        return "bg-red-500/10 text-red-500 border-red-500/20";
+      case "accepted":
+        return "bg-green-500/10 text-green-500 border-green-500/20";
+      default:
+        return "bg-secondary text-secondary-foreground";
+    }
   }
 
   if (state === "first-time") {
@@ -101,6 +139,10 @@ export function HomeTab({
             <li className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
               Auto-fill applications instantly
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+              Track all your job applications
             </li>
           </ul>
         </Card>
@@ -146,14 +188,6 @@ export function HomeTab({
           </Link>
         </Button>
 
-        {/* <Button
-          variant="outline"
-          className="w-full h-12 justify-start text-left hover:bg-secondary bg-transparent text-foreground"
-        >
-          <PenLine className="mr-3 h-5 w-5 text-accent flex-shrink-0" />
-          <span className="flex-1">Generate Cover Letter</span>
-        </Button> */}
-
         <Button
           onClick={handleApplyClick}
           className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground justify-start"
@@ -177,33 +211,118 @@ export function HomeTab({
           Ready
         </Badge>
         <span className="text-xs text-muted-foreground">
-          5 applications this week
+          {stats
+            ? `${stats.thisWeek} application${
+                stats.thisWeek !== 1 ? "s" : ""
+              } this week`
+            : "Loading..."}
         </span>
       </div>
 
+      {/* Recent Applications */}
       <Card className="p-3 bg-muted/50 border-border">
-        <h4 className="text-xs font-medium text-foreground mb-2">
-          Recent Applications
-        </h4>
-        <div className="space-y-2">
-          {[
-            { title: "Product Designer", company: "Stripe", status: "pending" },
-            { title: "UX Engineer", company: "Linear", status: "viewed" },
-          ].map((app, i) => (
-            <div key={i} className="flex items-center justify-between text-xs">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-foreground truncate">
-                  {app.title}
-                </p>
-                <p className="text-muted-foreground">{app.company}</p>
-              </div>
-              <Badge variant="secondary" className="text-xs">
-                {app.status}
-              </Badge>
-            </div>
-          ))}
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-xs font-medium text-foreground">
+            Recent Applications
+          </h4>
+          {stats && stats.total > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {stats.total} total
+            </span>
+          )}
         </div>
+
+        {isLoading ? (
+          <div className="text-center py-4 text-xs text-muted-foreground">
+            Loading applications...
+          </div>
+        ) : applications.length === 0 ? (
+          <div className="text-center py-4">
+            <p className="text-xs text-muted-foreground mb-2">
+              No applications tracked yet
+            </p>
+            <p className="text-xs text-muted-foreground/70">
+              Save jobs from the "Find a Job" tab
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+            {applications.slice(0, 5).map((app) => (
+              <div
+                key={app.id}
+                className="flex items-center justify-between text-xs p-2 rounded hover:bg-background/50 transition-colors"
+              >
+                <div className="flex-1 min-w-0 mr-2">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-medium text-foreground truncate">
+                      {app.jobTitle}
+                    </p>
+                    {app.jobUrl && (
+                      <a
+                        href={app.jobUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:text-primary/80"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-muted-foreground truncate">
+                    {app.company}
+                  </p>
+                  <p className="text-muted-foreground/70 text-[10px] mt-0.5">
+                    Applied{" "}
+                    {new Date(app.appliedDate).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] capitalize ${getStatusColor(
+                    app.status
+                  )}`}
+                >
+                  {app.status}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
+
+      {/* Application Stats Summary */}
+      {stats && stats.total > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          <Card className="p-2 bg-card/50 border-border">
+            <p className="text-[10px] text-muted-foreground text-center">
+              Pending
+            </p>
+            <p className="text-lg font-bold text-center text-foreground">
+              {stats.byStatus.pending}
+            </p>
+          </Card>
+          <Card className="p-2 bg-card/50 border-border">
+            <p className="text-[10px] text-muted-foreground text-center">
+              Viewed
+            </p>
+            <p className="text-lg font-bold text-center text-foreground">
+              {stats.byStatus.viewed}
+            </p>
+          </Card>
+          <Card className="p-2 bg-card/50 border-border">
+            <p className="text-[10px] text-muted-foreground text-center">
+              Interview
+            </p>
+            <p className="text-lg font-bold text-center text-foreground">
+              {stats.byStatus.interviewing}
+            </p>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

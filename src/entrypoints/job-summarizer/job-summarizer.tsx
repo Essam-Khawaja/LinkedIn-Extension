@@ -27,9 +27,15 @@ import {
   Loader2,
   X,
   AlertCircle,
+  Bookmark,
+  BookmarkCheck,
 } from "lucide-react";
 import { browser } from "wxt/browser";
 import checkPage from "@/lib/checkPage";
+import {
+  createApplication,
+  saveApplication,
+} from "@/lib/utils/applicationStorage";
 
 interface JobData {
   title: string;
@@ -118,6 +124,8 @@ export default function JobSummarizer() {
   const [showCoverLetter, setShowCoverLetter] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   async function handleGenerateCoverLetter() {
     setIsGenerating(true);
@@ -167,6 +175,40 @@ export default function JobSummarizer() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  async function handleSaveApplication() {
+    if (!scrapedData) return;
+
+    setIsSaving(true);
+    try {
+      // Get current URL
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      const jobUrl = tab?.url;
+
+      const application = createApplication(
+        scrapedData.jobData.title,
+        scrapedData.jobData.company,
+        scrapedData.jobData.location,
+        scrapedData.jobData.salary !== "N/A"
+          ? scrapedData.jobData.salary
+          : undefined,
+        jobUrl
+      );
+
+      await saveApplication(application);
+      setIsSaved(true);
+
+      // Reset after 3 seconds
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch (error) {
+      console.error("Failed to save application:", error);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   if (!onJobsPage) {
@@ -468,44 +510,73 @@ export default function JobSummarizer() {
           )}
 
           {/* Actions */}
-          <div className="flex gap-2 pt-2">
+          <div className="space-y-2 pt-2">
+            {/* Primary Actions Row */}
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={handleGenerateCoverLetter}
+                disabled={isUpdating || isGenerating}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-3 h-3 mr-1" />
+                    Cover Letter
+                  </>
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isUpdating}
+                onClick={() => {
+                  const summary = `Job: ${jobData.title}\nCompany: ${
+                    jobData.company
+                  }\nLocation: ${
+                    jobData.location
+                  }\n\nRequirements:\n${requirements
+                    .map((r) => `- ${r}`)
+                    .join("\n")}\n\nTop Skills:\n${skills
+                    .slice(0, 5)
+                    .map((s) => `- ${s.name} (${s.match}%)`)
+                    .join("\n")}`;
+                  navigator.clipboard.writeText(summary);
+                }}
+              >
+                <Copy className="w-3 h-3" />
+              </Button>
+            </div>
+
+            {/* Save Application Button */}
             <Button
               size="sm"
-              className="flex-1"
-              onClick={handleGenerateCoverLetter}
-              disabled={isUpdating || isGenerating}
+              variant={isSaved ? "secondary" : "outline"}
+              className="w-full"
+              onClick={handleSaveApplication}
+              disabled={isUpdating || isSaving || isSaved}
             >
-              {isGenerating ? (
+              {isSaving ? (
                 <>
                   <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  Generating...
+                  Saving...
+                </>
+              ) : isSaved ? (
+                <>
+                  <BookmarkCheck className="w-3 h-3 mr-1" />
+                  Saved to Applications
                 </>
               ) : (
                 <>
-                  <Mail className="w-3 h-3 mr-1" />
-                  Generate Cover Letter
+                  <Bookmark className="w-3 h-3 mr-1" />
+                  Save to Applications
                 </>
               )}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isUpdating}
-              onClick={() => {
-                const summary = `Job: ${jobData.title}\nCompany: ${
-                  jobData.company
-                }\nLocation: ${
-                  jobData.location
-                }\n\nRequirements:\n${requirements
-                  .map((r) => `- ${r}`)
-                  .join("\n")}\n\nTop Skills:\n${skills
-                  .slice(0, 5)
-                  .map((s) => `- ${s.name} (${s.match}%)`)
-                  .join("\n")}`;
-                navigator.clipboard.writeText(summary);
-              }}
-            >
-              <Copy className="w-3 h-3" />
             </Button>
           </div>
         </CardContent>
