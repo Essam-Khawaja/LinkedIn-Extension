@@ -19,16 +19,38 @@ interface ScrapedData {
   skills: Skill[];
 }
 
-interface UserProfile {
-  name: string;
-  email: string;
-  phone?: string;
-  currentRole?: string;
-  yearsExperience?: string;
-  skills?: string[];
-  achievements?: string[];
+interface EmploymentEntry {
+  id: string;
+  jobTitle: string;
+  company: string;
+  startDate: string;
+  endDate?: string;
+  isCurrent: boolean;
+  description?: string;
 }
 
+interface UserProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  yearsExperience: number;
+  skills: string[];
+  employmentHistory?: EmploymentEntry[];
+  education?: string;
+  resumeSummary?: string;
+  certifications?: string[];
+  salaryExpectation?: string;
+  linkedin: string;
+  portfolio?: string;
+  github?: string;
+  needsSponsorship: boolean;
+  willingToRelocate: boolean;
+}
 
 async function generateCoverLetter(
   jobData: JobData, 
@@ -58,14 +80,29 @@ async function generateCoverLetter(
       ? jobData.description.substring(0, 2000)
       : 'No description available';
 
-    // Build user context if profile provided
+    // Build comprehensive user context
     const userContext = userProfile ? `
 User Profile:
-- Name: ${userProfile.name || 'Not provided'}
-- Current Role: ${userProfile.currentRole || 'Not provided'}
-- Years of Experience: ${userProfile.yearsExperience || 'Not provided'}
+- Name: ${userProfile.firstName} ${userProfile.lastName}
+- Contact: ${userProfile.email} | ${userProfile.phone}
+- Location: ${userProfile.city}, ${userProfile.state} ${userProfile.zip}
+- Years of Experience: ${userProfile.yearsExperience} years
 - Key Skills: ${userProfile.skills?.join(', ') || 'Not provided'}
-- Notable Achievements: ${userProfile.achievements?.join('; ') || 'Not provided'}
+${userProfile.certifications?.length ? `- Certifications: ${userProfile.certifications.join(', ')}` : ''}
+${userProfile.education ? `- Education: ${userProfile.education}` : ''}
+${userProfile.linkedin ? `- LinkedIn: ${userProfile.linkedin}` : ''}
+${userProfile.github ? `- GitHub: ${userProfile.github}` : ''}
+${userProfile.portfolio ? `- Portfolio: ${userProfile.portfolio}` : ''}
+${userProfile.salaryExpectation ? `- Salary Expectation: ${userProfile.salaryExpectation}` : ''}
+${userProfile.needsSponsorship ? '- Note: Requires visa sponsorship' : ''}
+${userProfile.willingToRelocate ? '- Willing to relocate' : '- Prefers local opportunities'}
+
+${userProfile.resumeSummary ? `Professional Summary:\n${userProfile.resumeSummary}\n` : ''}
+
+${userProfile.employmentHistory?.length ? `Recent Employment History:
+${userProfile.employmentHistory.slice(0, 3).map(job => 
+  `- ${job.jobTitle} at ${job.company} (${job.startDate} - ${job.isCurrent ? 'Present' : job.endDate || 'N/A'})${job.description ? '\n  ' + job.description : ''}`
+).join('\n')}` : ''}
 ` : '';
 
     const keyRequirements = analyzedData.requirements?.slice(0, 5).join('\n- ') || 'Not analyzed';
@@ -77,6 +114,8 @@ Job Details:
 - Position: ${jobData.title}
 - Company: ${jobData.company}
 - Location: ${jobData.location}
+- Job Type: ${jobData.type}
+${jobData.salary !== 'N/A' ? `- Salary Range: ${jobData.salary}` : ''}
 
 Key Requirements from Job Posting:
 - ${keyRequirements}
@@ -90,29 +129,38 @@ Job Description Summary:
 ${description}
 
 Instructions:
-1. Write a professional, engaging cover letter (250-350 words)
-2. Open with a strong hook that shows enthusiasm for the role
-3. Highlight 2-3 relevant experiences or skills that match the job requirements
-4. Show knowledge of the company (keep it brief and professional)
-5. Express genuine interest in contributing to the team
-6. Close with a call to action
-7. Use a professional but warm tone
-8. DO NOT use overly generic phrases like "I am writing to express my interest"
-9. Be specific about skills and experiences rather than vague claims
-10. Keep paragraphs concise and impactful
+1. Write a professional, engaging cover letter (300-400 words)
+2. Open with a strong hook that shows genuine enthusiasm and explains why this specific role interests you
+3. Highlight 2-3 relevant experiences from employment history that directly match job requirements
+4. Reference specific skills from the user's profile that align with the job needs
+5. If user has relevant certifications or education, weave them naturally into the narrative
+6. Show knowledge of ${jobData.company} and explain why you want to work there specifically
+7. Address any important considerations (sponsorship needs, relocation willingness) naturally if relevant
+8. Express genuine interest in contributing to the team's goals
+9. Close with a confident call to action
+10. Use a professional but warm, conversational tone
+11. DO NOT use generic opening lines like "I am writing to express my interest"
+12. Be specific about experiences and achievements rather than vague claims
+13. Quantify achievements when possible based on employment descriptions
+14. Keep paragraphs concise and impactful (3-4 sentences each)
+15. Ensure the letter tells a cohesive story about why this candidate is perfect for this role
 
-Format the letter with:
-[Date]
+Format the letter with proper business letter structure:
 
-[Hiring Manager/Hiring Team]
+${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+
+Hiring Manager
 ${jobData.company}
+${jobData.location}
 
-[Body paragraphs]
+[Body paragraphs - 3-4 paragraphs total]
 
 Sincerely,
-${userProfile?.name || '[Your Name]'}
+${userProfile?.firstName || '[Your Name]'} ${userProfile?.lastName || '[Last Name]'}
+${userProfile?.email || '[Your Email]'}
+${userProfile?.phone || '[Your Phone]'}
 
-Return ONLY the cover letter text, no additional commentary.`;
+Return ONLY the cover letter text, no additional commentary or explanation.`;
 
     const result = await session.prompt(prompt);
     console.log("Generated cover letter");
@@ -126,7 +174,7 @@ Return ONLY the cover letter text, no additional commentary.`;
   }
 }
 
-async function analyzeJobWithAI(jobData: any) {
+async function analyzeJobWithAI(jobData: any, userProfile?: UserProfile) {
   try {
     // @ts-ignore
     const availability = await LanguageModel.availability();
@@ -169,13 +217,19 @@ async function analyzeJobWithAI(jobData: any) {
             },
           },
         },
-        requirements: {type: "array",
+        requirements: {
+          type: "array",
           items: {
             type: "string",
           }
         }
       },
     };
+
+    // Build user context for better skill matching
+    const userSkillsContext = userProfile?.skills?.length 
+      ? `\n\nUser's Skills for Match Calculation:\n${userProfile.skills.join(', ')}\n\nWhen calculating skill match percentages, compare the job's required skills against the user's skills listed above. Give higher match scores (80-100%) for exact or closely related matches, medium scores (50-79%) for transferable skills, and lower scores (20-49%) for skills the user doesn't have.`
+      : '';
 
     const prompt = `Analyze this job posting and extract key information.
 
@@ -187,22 +241,44 @@ Job Details:
 - Current Salary: ${jobData.salary || "Not specified"}
 
 Full Description:
-${description}
+${description}${userSkillsContext}
 
 IMPORTANT: Only extract information that is explicitly stated in the description. Do not make up or infer information.
 
 Provide a JSON response with:
-1. cleanSummary: A 2-3 sentence concise summary of the role
-2. salary: Extract salary as "$XX,XXX - $XX,XXX" or "N/A" if not mentioned
-3. requirements: Extract 5-7 key qualifications/requirements (prioritize basic qualifications)
-4. skills: Array of 5-7 key technical skills with importance rating (0-100)
+1. cleanSummary: A 2-3 sentence concise summary of the role and its main focus areas
+2. salary: Extract salary as "$XX,XXX - $XX,XXX" or "N/A" if not mentioned. Look for annual salary, hourly rates, or compensation ranges.
+3. requirements: Extract 6-8 key qualifications/requirements from the job posting. Prioritize:
+   - Educational requirements
+   - Years of experience needed
+   - Must-have technical skills
+   - Certifications or licenses required
+   - Key soft skills mentioned
+4. skills: Array of 6-8 key technical/professional skills mentioned in the job posting with match ratings:
+   - If user skills are provided, calculate match based on overlap with user's skill set
+   - If no user skills provided, estimate general importance/demand (0-100)
+   - Prioritize skills explicitly mentioned in the job requirements
 
 Example format:
 {
-  "cleanSummary": "Software engineer role focusing on...",
-  "salary": "$80,000 - $120,000",
-  "requirements": ["Bachelor's degree in CS", "3+ years experience"],
-  "skills": [{"name": "JavaScript", "match": 90}, {"name": "React", "match": 85}]
+  "cleanSummary": "Software engineer role focusing on full-stack development with React and Node.js, working on customer-facing products in a fast-paced environment.",
+  "salary": "$90,000 - $130,000",
+  "requirements": [
+    "Bachelor's degree in Computer Science or related field",
+    "3+ years of professional software development experience",
+    "Strong proficiency in JavaScript/TypeScript",
+    "Experience with React and modern frontend frameworks",
+    "Familiarity with RESTful APIs and microservices",
+    "Excellent problem-solving and communication skills"
+  ],
+  "skills": [
+    {"name": "React", "match": 90},
+    {"name": "TypeScript", "match": 85},
+    {"name": "Node.js", "match": 80},
+    {"name": "REST APIs", "match": 75},
+    {"name": "Git", "match": 70},
+    {"name": "SQL", "match": 65}
+  ]
 }
 
 Return ONLY valid JSON matching this structure.`;
@@ -210,7 +286,7 @@ Return ONLY valid JSON matching this structure.`;
     const result = await session.prompt(prompt, {responseConstraint: schema});
     console.log("Raw AI Response:", result);
 
-      let cleanedResult = result.trim();
+    let cleanedResult = result.trim();
     
     // Remove ```json and ``` if present
     if (cleanedResult.startsWith('```json')) {
@@ -225,6 +301,7 @@ Return ONLY valid JSON matching this structure.`;
     return parsed;
 
   } catch (err) {
+    console.error("AI analysis error:", err);
     return null;
   }
 }

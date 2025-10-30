@@ -24,9 +24,26 @@ interface ScrapedData {
 
 let latestScraped: ScrapedData | null = null;
 let isProcessing = false;
+let cachedProfile: UserProfile | null = null;
 
 export default defineBackground(() => {
   console.log('Background script initialized');
+
+  // Load profile on startup
+  chrome.storage.local.get('profile').then((data) => {
+    if (data.profile) {
+      cachedProfile = data.profile;
+      console.log('Profile loaded on startup');
+    }
+  });
+
+  // Listen for profile changes
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && changes.profile) {
+      cachedProfile = changes.profile.newValue;
+      console.log('Profile cache updated');
+    }
+  });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.type) {
@@ -46,15 +63,22 @@ export default defineBackground(() => {
         
         (async () => {
           try {
+            // Use cached profile if available
+            if (cachedProfile) {
+              sendResponse({ ok: true, profile: cachedProfile });
+              return;
+            }
+
             const data = await chrome.storage.local.get('profile');
-            console.log('Sending profile:', data.profile);
-            sendResponse({ ok: true, profile: data.profile });
+            cachedProfile = data.profile || null;
+            console.log('Sending profile:', cachedProfile);
+            sendResponse({ ok: true, profile: cachedProfile });
           } catch (err) {
             console.error("Error in GET_PROFILE:", err);
             sendResponse({ ok: false, error: err!.toString() });
           }
         })();
-        return true; // Keep channel open
+        return true;
       }
 
       case 'JOB_SCRAPED_DATA': {
@@ -62,9 +86,10 @@ export default defineBackground(() => {
         console.log('📦 JOB_SCRAPED_DATA received');
 
         if (scrapedData?.jobData.description && scrapedData.jobData.description.length > 100) {
-          console.log('Starting AI analysis...');
+          console.log('Starting AI analysis with user profile...');
           
-          analyzeJobWithAI(scrapedData.jobData)
+          // Pass user profile to AI for better skill matching
+          analyzeJobWithAI(scrapedData.jobData, cachedProfile || undefined)
             .then(aiResult => {
               console.log('AI Result:', aiResult);
 
@@ -128,8 +153,26 @@ export default defineBackground(() => {
               return;
             }
 
+            // Additional validation
+            if (!profileData.phone || !profileData.city || !profileData.state) {
+              sendResponse({
+                ok: false,
+                error: 'Missing required fields: Phone, City, State'
+              });
+              return;
+            }
+
+            if (!profileData.skills || profileData.skills.length === 0) {
+              sendResponse({
+                ok: false,
+                error: 'Please add at least one skill to your profile'
+              });
+              return;
+            }
+
             // Save to chrome.storage
             await chrome.storage.local.set({ profile: profileData });
+            cachedProfile = profileData;
             
             console.log('Profile saved successfully');
             
@@ -147,13 +190,35 @@ export default defineBackground(() => {
         
         (async () => {
           try {
-            // Get user profile
-            const { profile } = await chrome.storage.local.get('profile');
+            // Get user profile from cache or storage
+            let profile = cachedProfile;
+            if (!profile) {
+              const { profile: storedProfile } = await chrome.storage.local.get('profile');
+              profile = storedProfile;
+              cachedProfile = profile;
+            }
             
             if (!profile) {
               sendResponse({ 
                 ok: false, 
-                error: 'No profile found. Please set up your profile first.' 
+                error: 'No profile found. Please set up your profile first in the Settings tab.' 
+              });
+              return;
+            }
+
+            // Validate profile has minimum required fields
+            if (!profile.skills || profile.skills.length === 0) {
+              sendResponse({
+                ok: false,
+                error: 'Your profile needs at least one skill listed. Please update your profile in Settings.'
+              });
+              return;
+            }
+
+            if (!profile.resumeSummary && (!profile.employmentHistory || profile.employmentHistory.length === 0)) {
+              sendResponse({
+                ok: false,
+                error: 'Please add either a resume summary or employment history to your profile for better cover letters.'
               });
               return;
             }
@@ -169,28 +234,22 @@ export default defineBackground(() => {
 
             console.log('Generating cover letter with:', {
               job: latestScraped.jobData.title,
-              user: profile.firstName
+              user: `${profile.firstName} ${profile.lastName}`,
+              skills: profile.skills?.length || 0,
+              experience: profile.yearsExperience
             });
 
-            // Generate the cover letter
+            // Generate the cover letter with full profile
             const coverLetter = await generateCoverLetter(
               latestScraped.jobData,
               latestScraped,
-              {
-                name: `${profile.firstName} ${profile.lastName}`,
-                email: profile.email,
-                phone: profile.phone,
-                currentRole: profile.currentTitle,
-                yearsExperience: profile.yearsExperience?.toString(),
-                skills: [], // You can add skills to profile if needed
-                achievements: []
-              }
+              profile
             );
 
             if (!coverLetter) {
               sendResponse({ 
                 ok: false, 
-                error: 'Failed to generate cover letter. AI may not be available.' 
+                error: 'Failed to generate cover letter. AI may not be available or still downloading.' 
               });
               return;
             }
@@ -205,17 +264,25 @@ export default defineBackground(() => {
             console.error('Cover letter generation error:', err);
             sendResponse({ 
               ok: false, 
-              error: err!.toString() 
+              error: `Failed to generate: ${err!.toString()}` 
             });
           }
         })();
         
-        return true; // Keep channel open for async response
+        return true;
       }
 
       case 'GET_LATEST_JOB_SCRAPED':
-        console.log('Sending data to popup:', { hasData: !!latestScraped, isProcessing });
-        sendResponse({ data: latestScraped, isProcessing });
+        console.log('Sending data to popup:', { 
+          hasData: !!latestScraped, 
+          isProcessing,
+          hasProfile: !!cachedProfile 
+        });
+        sendResponse({ 
+          data: latestScraped, 
+          isProcessing,
+          hasProfile: !!cachedProfile 
+        });
         return true;
 
       default:

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Briefcase,
   MapPin,
@@ -25,6 +26,7 @@ import {
   ArrowRight,
   Loader2,
   X,
+  AlertCircle,
 } from "lucide-react";
 import { browser } from "wxt/browser";
 import checkPage from "@/lib/checkPage";
@@ -115,10 +117,12 @@ export default function JobSummarizer() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showCoverLetter, setShowCoverLetter] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleGenerateCoverLetter() {
     setIsGenerating(true);
     setShowCoverLetter(true);
+    setError(null);
 
     try {
       const response = await chrome.runtime.sendMessage({
@@ -129,14 +133,15 @@ export default function JobSummarizer() {
 
       if (response?.ok && response.coverLetter) {
         setCoverLetter(response.coverLetter);
+        setError(null);
       } else {
-        alert(response?.error || "Failed to generate cover letter");
-        setShowCoverLetter(false);
+        setError(response?.error || "Failed to generate cover letter");
+        setCoverLetter(null);
       }
     } catch (error) {
       console.error("Error generating cover letter:", error);
-      alert("Failed to generate cover letter. Check console for details.");
-      setShowCoverLetter(false);
+      setError("Failed to generate cover letter. Check console for details.");
+      setCoverLetter(null);
     } finally {
       setIsGenerating(false);
     }
@@ -148,6 +153,20 @@ export default function JobSummarizer() {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     }
+  }
+
+  function handleDownloadCoverLetter() {
+    if (!coverLetter) return;
+
+    const blob = new Blob([coverLetter], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cover-letter-${scrapedData?.jobData.company || "job"}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   if (!onJobsPage) {
@@ -198,6 +217,12 @@ export default function JobSummarizer() {
   const requirements = scrapedData.requirements || [];
   const skills = scrapedData.skills || [];
 
+  // Calculate average skill match if skills exist
+  const avgMatch =
+    skills.length > 0
+      ? Math.round(skills.reduce((acc, s) => acc + s.match, 0) / skills.length)
+      : 0;
+
   // Show cover letter view if active
   if (showCoverLetter) {
     return (
@@ -215,6 +240,7 @@ export default function JobSummarizer() {
                 onClick={() => {
                   setShowCoverLetter(false);
                   setCoverLetter(null);
+                  setError(null);
                 }}
               >
                 <X className="w-4 h-4" />
@@ -226,11 +252,21 @@ export default function JobSummarizer() {
           </CardHeader>
 
           <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">{error}</AlertDescription>
+              </Alert>
+            )}
+
             {isGenerating ? (
               <div className="flex flex-col items-center justify-center py-8 space-y-3">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">
                   Generating your personalized cover letter...
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  This may take 10-30 seconds
                 </p>
               </div>
             ) : coverLetter ? (
@@ -238,7 +274,7 @@ export default function JobSummarizer() {
                 <Textarea
                   value={coverLetter}
                   onChange={(e) => setCoverLetter(e.target.value)}
-                  className="min-h-[300px] text-xs font-mono"
+                  className="min-h-[350px] text-xs font-mono"
                   placeholder="Your cover letter will appear here..."
                 />
                 <div className="flex gap-2">
@@ -255,16 +291,24 @@ export default function JobSummarizer() {
                     ) : (
                       <>
                         <Copy className="w-3 h-3 mr-1" />
-                        Copy to Clipboard
+                        Copy
                       </>
                     )}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={handleDownloadCoverLetter}
+                  >
+                    <Download className="w-3 h-3 mr-1" />
+                    Download
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => setShowCoverLetter(false)}
                   >
-                    Back to Summary
+                    Back
                   </Button>
                 </div>
               </>
@@ -287,7 +331,7 @@ export default function JobSummarizer() {
                 Job Analysis
               </CardTitle>
               <CardDescription className="text-xs">
-                AI-powered job post summary
+                AI-powered job analysis with skill matching
               </CardDescription>
             </div>
             <Badge
@@ -317,6 +361,9 @@ export default function JobSummarizer() {
           {/* Job Info */}
           <div className="space-y-2">
             <h3 className="font-semibold text-sm">{jobData.title}</h3>
+            <p className="text-xs text-primary font-medium">
+              {jobData.company}
+            </p>
             <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
                 <MapPin className="w-3 h-3" />
@@ -339,19 +386,40 @@ export default function JobSummarizer() {
 
           <Separator />
 
+          {/* Overall Match Score */}
+          {skills.length > 0 && (
+            <>
+              <div className="space-y-2 bg-secondary/50 p-3 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-medium text-sm">Overall Match</h4>
+                  <span className="text-2xl font-bold text-primary">
+                    {avgMatch}%
+                  </span>
+                </div>
+                <div className="w-full bg-secondary rounded-full h-2">
+                  <div
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${avgMatch}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Based on your profile skills vs job requirements
+                </p>
+              </div>
+              <Separator />
+            </>
+          )}
+
           {/* Key Requirements */}
           {requirements.length > 0 && (
             <>
               <div className="space-y-2">
                 <h4 className="font-medium text-sm">Key Requirements</h4>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   {requirements.map((req: string, index: number) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-2 text-xs"
-                    >
-                      <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-                      {req}
+                    <div key={index} className="flex items-start gap-2 text-xs">
+                      <div className="w-1.5 h-1.5 bg-primary rounded-full mt-1.5 flex-shrink-0" />
+                      <span>{req}</span>
                     </div>
                   ))}
                 </div>
@@ -363,19 +431,33 @@ export default function JobSummarizer() {
           {/* Skill Match */}
           {skills.length > 0 && (
             <div className="space-y-2">
-              <h4 className="font-medium text-sm">Your Skill Match</h4>
+              <h4 className="font-medium text-sm">Skill Breakdown</h4>
               <div className="space-y-2">
                 {skills.map((skill: { name: string; match: number }) => (
                   <div key={skill.name} className="space-y-1">
                     <div className="flex justify-between text-xs">
-                      <span>{skill.name}</span>
-                      <span className="text-muted-foreground">
+                      <span className="font-medium">{skill.name}</span>
+                      <span
+                        className={`${
+                          skill.match >= 80
+                            ? "text-green-500"
+                            : skill.match >= 50
+                            ? "text-yellow-500"
+                            : "text-red-500"
+                        }`}
+                      >
                         {skill.match}%
                       </span>
                     </div>
                     <div className="w-full bg-secondary rounded-full h-1.5">
                       <div
-                        className="bg-primary h-1.5 rounded-full transition-all duration-300"
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
+                          skill.match >= 80
+                            ? "bg-green-500"
+                            : skill.match >= 50
+                            ? "bg-yellow-500"
+                            : "bg-red-500"
+                        }`}
                         style={{ width: `${skill.match}%` }}
                       />
                     </div>
@@ -405,11 +487,25 @@ export default function JobSummarizer() {
                 </>
               )}
             </Button>
-            <Button size="sm" variant="outline" disabled={isUpdating}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isUpdating}
+              onClick={() => {
+                const summary = `Job: ${jobData.title}\nCompany: ${
+                  jobData.company
+                }\nLocation: ${
+                  jobData.location
+                }\n\nRequirements:\n${requirements
+                  .map((r) => `- ${r}`)
+                  .join("\n")}\n\nTop Skills:\n${skills
+                  .slice(0, 5)
+                  .map((s) => `- ${s.name} (${s.match}%)`)
+                  .join("\n")}`;
+                navigator.clipboard.writeText(summary);
+              }}
+            >
               <Copy className="w-3 h-3" />
-            </Button>
-            <Button size="sm" variant="outline" disabled={isUpdating}>
-              <Download className="w-3 h-3" />
             </Button>
           </div>
         </CardContent>
