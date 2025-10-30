@@ -11,7 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileText, Bot, CheckCircle2, ExternalLink } from "lucide-react";
+import {
+  FileText,
+  Bot,
+  CheckCircle2,
+  ExternalLink,
+  Trash2,
+} from "lucide-react";
 import type {
   HomeState,
   ProfileStatus,
@@ -22,6 +28,7 @@ import {
   getApplications,
   getApplicationStats,
   updateApplicationStatus,
+  deleteApplication,
 } from "@/lib/utils/applicationStorage";
 import type { Application, ApplicationStats } from "@/lib/types/application";
 
@@ -77,6 +84,20 @@ export function HomeTab({
       await loadApplications();
     } catch (error) {
       console.error("Failed to update status:", error);
+    }
+  }
+
+  async function handleDeleteApplication(id: string) {
+    if (!confirm("Are you sure you want to delete this application?")) {
+      return;
+    }
+
+    try {
+      await deleteApplication(id);
+      // Reload applications to update UI
+      await loadApplications();
+    } catch (error) {
+      console.error("Failed to delete application:", error);
     }
   }
 
@@ -271,7 +292,7 @@ export function HomeTab({
             {applications.slice(0, 5).map((app) => (
               <div
                 key={app.id}
-                className="flex items-center justify-between text-xs p-2 rounded hover:bg-background/50 transition-colors"
+                className="flex items-center justify-between text-xs p-2 rounded hover:bg-background/50 transition-colors group"
               >
                 <div className="flex-1 min-w-0 mr-2">
                   <div className="flex items-center gap-1.5">
@@ -301,37 +322,47 @@ export function HomeTab({
                     })}
                   </p>
                 </div>
-                <Select
-                  value={app.status}
-                  onValueChange={(value) =>
-                    handleStatusChange(app.id, value as Application["status"])
-                  }
-                >
-                  <SelectTrigger
-                    className={`w-[110px] h-7 text-[10px] ${getStatusColor(
-                      app.status
-                    )}`}
+                <div className="flex items-center gap-1">
+                  <Select
+                    value={app.status}
+                    onValueChange={(value) =>
+                      handleStatusChange(app.id, value as Application["status"])
+                    }
                   >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending" className="text-xs">
-                      Pending
-                    </SelectItem>
-                    <SelectItem value="viewed" className="text-xs">
-                      Viewed
-                    </SelectItem>
-                    <SelectItem value="interviewing" className="text-xs">
-                      Interviewing
-                    </SelectItem>
-                    <SelectItem value="rejected" className="text-xs">
-                      Rejected
-                    </SelectItem>
-                    <SelectItem value="accepted" className="text-xs">
-                      Accepted
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                    <SelectTrigger
+                      className={`w-[110px] h-7 text-[10px] ${getStatusColor(
+                        app.status
+                      )}`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending" className="text-xs">
+                        Pending
+                      </SelectItem>
+                      <SelectItem value="viewed" className="text-xs">
+                        Viewed
+                      </SelectItem>
+                      <SelectItem value="interviewing" className="text-xs">
+                        Interviewing
+                      </SelectItem>
+                      <SelectItem value="rejected" className="text-xs">
+                        Rejected
+                      </SelectItem>
+                      <SelectItem value="accepted" className="text-xs">
+                        Accepted
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => handleDeleteApplication(app.id)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

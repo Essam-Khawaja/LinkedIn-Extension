@@ -228,7 +228,15 @@ async function analyzeJobWithAI(jobData: any, userProfile?: UserProfile) {
 
     // Build user context for better skill matching
     const userSkillsContext = userProfile?.skills?.length 
-      ? `\n\nUser's Skills for Match Calculation:\n${userProfile.skills.join(', ')}\n\nWhen calculating skill match percentages, compare the job's required skills against the user's skills listed above. Give higher match scores (80-100%) for exact or closely related matches, medium scores (50-79%) for transferable skills, and lower scores (20-49%) for skills the user doesn't have.`
+      ? `\n\nUser's Skills for Match Calculation:\n${userProfile.skills.join(', ')}\n\nWhen calculating skill match percentages, be STRICT and REALISTIC:
+- Compare each required job skill against the user's skills listed above
+- Only give 90-100% for EXACT matches (same skill name)
+- Give 70-89% for very closely related skills (e.g., React and React.js)
+- Give 50-69% for somewhat related skills (e.g., JavaScript and TypeScript)
+- Give 30-49% for transferable but not directly related skills
+- Give 0-29% for skills the user clearly doesn't have
+- Most skills should fall in the 30-70% range - be critical and realistic
+- Don't inflate scores just to be positive`
       : '';
 
     const prompt = `Analyze this job posting and extract key information.
@@ -255,7 +263,14 @@ Provide a JSON response with:
    - Certifications or licenses required
    - Key soft skills mentioned
 4. skills: Array of 6-8 key technical/professional skills mentioned in the job posting with match ratings:
-   - If user skills are provided, calculate match based on overlap with user's skill set
+   - If user skills are provided, BE STRICT with match percentages:
+     * 90-100%: User has this EXACT skill listed (exact match only)
+     * 70-89%: User has a very closely related skill (e.g., "React" for "React.js")
+     * 50-69%: User has a somewhat related skill (e.g., "JavaScript" for "TypeScript")
+     * 30-49%: User has transferable skills but not this specific one
+     * 0-29%: User does not have this skill or related skills
+   - Most matches should be in the 30-70% range unless there's a clear skill overlap
+   - Be realistic and critical - don't inflate scores
    - If no user skills provided, estimate general importance/demand (0-100)
    - Prioritize skills explicitly mentioned in the job requirements
 
