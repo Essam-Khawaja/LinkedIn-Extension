@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { FileText, Bot, CheckCircle2, ExternalLink } from "lucide-react";
 import type {
   HomeState,
@@ -14,6 +21,7 @@ import UserProfile from "@/lib/types/user";
 import {
   getApplications,
   getApplicationStats,
+  updateApplicationStatus,
 } from "@/lib/utils/applicationStorage";
 import type { Application, ApplicationStats } from "@/lib/types/application";
 
@@ -56,6 +64,19 @@ export function HomeTab({
       console.error("Failed to load applications:", error);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleStatusChange(
+    id: string,
+    newStatus: Application["status"]
+  ) {
+    try {
+      await updateApplicationStatus(id, newStatus);
+      // Reload applications to update UI
+      await loadApplications();
+    } catch (error) {
+      console.error("Failed to update status:", error);
     }
   }
 
@@ -280,14 +301,37 @@ export function HomeTab({
                     })}
                   </p>
                 </div>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] capitalize ${getStatusColor(
-                    app.status
-                  )}`}
+                <Select
+                  value={app.status}
+                  onValueChange={(value) =>
+                    handleStatusChange(app.id, value as Application["status"])
+                  }
                 >
-                  {app.status}
-                </Badge>
+                  <SelectTrigger
+                    className={`w-[110px] h-7 text-[10px] ${getStatusColor(
+                      app.status
+                    )}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending" className="text-xs">
+                      Pending
+                    </SelectItem>
+                    <SelectItem value="viewed" className="text-xs">
+                      Viewed
+                    </SelectItem>
+                    <SelectItem value="interviewing" className="text-xs">
+                      Interviewing
+                    </SelectItem>
+                    <SelectItem value="rejected" className="text-xs">
+                      Rejected
+                    </SelectItem>
+                    <SelectItem value="accepted" className="text-xs">
+                      Accepted
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             ))}
           </div>

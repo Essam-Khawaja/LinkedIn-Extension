@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -19,7 +20,6 @@ import {
   Clock,
   DollarSign,
   Star,
-  Copy,
   Download,
   CheckCircle,
   Mail,
@@ -29,12 +29,14 @@ import {
   AlertCircle,
   Bookmark,
   BookmarkCheck,
+  ArrowLeft,
 } from "lucide-react";
 import { browser } from "wxt/browser";
 import checkPage from "@/lib/checkPage";
 import {
   createApplication,
   saveApplication,
+  applicationExists,
 } from "@/lib/utils/applicationStorage";
 
 interface JobData {
@@ -116,6 +118,7 @@ export function useContentScriptData() {
 }
 
 export default function JobSummarizer() {
+  const navigate = useNavigate();
   const { onJobsPage, scrapedData, dataIsLoaded, isUpdating } =
     useContentScriptData();
 
@@ -126,6 +129,22 @@ export default function JobSummarizer() {
   const [error, setError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [alreadyExists, setAlreadyExists] = useState(false);
+
+  // Check if application already exists when data loads
+  useEffect(() => {
+    async function checkExists() {
+      if (scrapedData) {
+        const exists = await applicationExists(
+          scrapedData.jobData.title,
+          scrapedData.jobData.company
+        );
+        setAlreadyExists(exists);
+        setIsSaved(exists);
+      }
+    }
+    checkExists();
+  }, [scrapedData]);
 
   async function handleGenerateCoverLetter() {
     setIsGenerating(true);
@@ -178,7 +197,7 @@ export default function JobSummarizer() {
   }
 
   async function handleSaveApplication() {
-    if (!scrapedData) return;
+    if (!scrapedData || alreadyExists) return;
 
     setIsSaving(true);
     try {
@@ -201,9 +220,9 @@ export default function JobSummarizer() {
 
       await saveApplication(application);
       setIsSaved(true);
+      setAlreadyExists(true);
 
-      // Reset after 3 seconds
-      setTimeout(() => setIsSaved(false), 3000);
+      // Don't reset - keep it saved
     } catch (error) {
       console.error("Failed to save application:", error);
     } finally {
@@ -331,10 +350,7 @@ export default function JobSummarizer() {
                         Copied!
                       </>
                     ) : (
-                      <>
-                        <Copy className="w-3 h-3 mr-1" />
-                        Copy
-                      </>
+                      <>Copy to Clipboard</>
                     )}
                   </Button>
                   <Button
@@ -367,14 +383,24 @@ export default function JobSummarizer() {
       <Card className="w-full max-w-md shadow-lg border-primary/20">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-primary" />
-                Job Analysis
-              </CardTitle>
-              <CardDescription className="text-xs">
-                AI-powered job analysis with skill matching
-              </CardDescription>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/")}
+                className="h-8 w-8 p-0"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <div className="space-y-1">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-primary" />
+                  Job Analysis
+                </CardTitle>
+                {/* <CardDescription className="text-xs">
+                  AI-powered job analysis with skill matching
+                </CardDescription> */}
+              </div>
             </div>
             <Badge
               variant={isUpdating ? "outline" : "secondary"}
@@ -400,6 +426,55 @@ export default function JobSummarizer() {
             isUpdating ? "opacity-50 pointer-events-none" : ""
           }`}
         >
+          {/* Primary Actions at Top */}
+          <div className="space-y-2">
+            <Button
+              size="sm"
+              className="w-full"
+              onClick={handleGenerateCoverLetter}
+              disabled={isUpdating || isGenerating}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  Generating Cover Letter...
+                </>
+              ) : (
+                <>
+                  <Mail className="w-3 h-3 mr-1" />
+                  Generate Cover Letter
+                </>
+              )}
+            </Button>
+
+            <Button
+              size="sm"
+              variant={isSaved ? "secondary" : "outline"}
+              className="w-full"
+              onClick={handleSaveApplication}
+              disabled={isUpdating || isSaving || alreadyExists}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  Saving...
+                </>
+              ) : alreadyExists ? (
+                <>
+                  <BookmarkCheck className="w-3 h-3 mr-1" />
+                  Already Saved
+                </>
+              ) : (
+                <>
+                  <Bookmark className="w-3 h-3 mr-1" />
+                  Save to Applications
+                </>
+              )}
+            </Button>
+          </div>
+
+          <Separator />
+
           {/* Job Info */}
           <div className="space-y-2">
             <h3 className="font-semibold text-sm">{jobData.title}</h3>
@@ -508,77 +583,6 @@ export default function JobSummarizer() {
               </div>
             </div>
           )}
-
-          {/* Actions */}
-          <div className="space-y-2 pt-2">
-            {/* Primary Actions Row */}
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="flex-1"
-                onClick={handleGenerateCoverLetter}
-                disabled={isUpdating || isGenerating}
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-3 h-3 mr-1" />
-                    Cover Letter
-                  </>
-                )}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isUpdating}
-                onClick={() => {
-                  const summary = `Job: ${jobData.title}\nCompany: ${
-                    jobData.company
-                  }\nLocation: ${
-                    jobData.location
-                  }\n\nRequirements:\n${requirements
-                    .map((r) => `- ${r}`)
-                    .join("\n")}\n\nTop Skills:\n${skills
-                    .slice(0, 5)
-                    .map((s) => `- ${s.name} (${s.match}%)`)
-                    .join("\n")}`;
-                  navigator.clipboard.writeText(summary);
-                }}
-              >
-                <Copy className="w-3 h-3" />
-              </Button>
-            </div>
-
-            {/* Save Application Button */}
-            <Button
-              size="sm"
-              variant={isSaved ? "secondary" : "outline"}
-              className="w-full"
-              onClick={handleSaveApplication}
-              disabled={isUpdating || isSaving || isSaved}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  Saving...
-                </>
-              ) : isSaved ? (
-                <>
-                  <BookmarkCheck className="w-3 h-3 mr-1" />
-                  Saved to Applications
-                </>
-              ) : (
-                <>
-                  <Bookmark className="w-3 h-3 mr-1" />
-                  Save to Applications
-                </>
-              )}
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>
