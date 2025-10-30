@@ -7,6 +7,8 @@ import { ProfileTab } from "@/components/tabs/profile-tab";
 import { isProfileComplete } from "@/lib/utils/profileValidation";
 import UserProfile from "@/lib/types/user";
 
+import logo from "@/assets/Logo.png";
+
 export type HomeState = "job-detected" | "not-on-job" | "first-time";
 export type ProfileStatus = "complete" | "incomplete";
 
@@ -85,8 +87,10 @@ export function ExtensionPopup() {
         {/* Header */}
         <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <span className="text-lg">🎯</span>
+            <div className="w-8 h-8 rounded-lg from-primary to-accent flex items-center justify-center">
+              <span className="text-lg">
+                <img className="rounded-full" src={logo}></img>
+              </span>
             </div>
             <h1 className="font-semibold text-card-foreground">SwiftApply</h1>
           </div>

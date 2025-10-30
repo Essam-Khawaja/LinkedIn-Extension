@@ -3,12 +3,30 @@
   "name": "SwiftApply",
   "description": "All your job application needs in one place!",
   "version": "0.0.0",
+  "icons": {
+    "16": "icon/Logo.png",
+    "32": "icon/Logo.png",
+    "48": "icon/Logo.png",
+    "96": "icon/96.png",
+    "128": "icon/Logo.png"
+  },
   "permissions": [
     "tabs",
     "activeTab",
     "scripting",
     "storage"
   ],
+  "action": {
+    "default_icon": {
+      "16": "icon/Logo.png",
+      "32": "icon/Logo.png",
+      "48": "icon/Logo.png",
+      "96": "icon/Logo.png",
+      "128": "icon/Logo.png"
+    },
+    "default_title": "Default Popup Title",
+    "default_popup": "popup.html"
+  },
   "background": {
     "service_worker": "background.js"
   },
@@ -32,10 +50,6 @@
         "default": "Alt+R"
       }
     }
-  },
-  "action": {
-    "default_title": "Default Popup Title",
-    "default_popup": "popup.html"
   },
   "host_permissions": [
     "*://*.greenhouse.io/*",
