@@ -198,7 +198,7 @@ export function HomeTab({
 
   // job-detected state
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 overflow-hidden">
       <Card className="p-4 bg-card border-border">
         <div className="space-y-1">
           <h3 className="font-semibold text-card-foreground text-balance">

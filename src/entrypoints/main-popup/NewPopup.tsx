@@ -82,7 +82,7 @@ export function ExtensionPopup() {
   }
 
   return (
-    <div className="dark extension-popup">
+    <div className="dark extension-popup overflow-hidden">
       <div className="bg-background overflow-hidden">
         {/* Header */}
         <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between">

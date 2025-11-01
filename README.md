@@ -4,7 +4,7 @@
 
 SwiftApply is a Chrome Extension that transforms the job application process for students by leveraging Chrome's built-in AI (Gemini Nano) to provide intelligent job analysis, personalized cover letter generation, and smart profile matching—all running locally on your device with complete privacy.
 
-[![Demo Video](https://img.shields.io/badge/Demo-Watch%20on%20YouTube-red)](YOUR_VIDEO_LINK_HERE)
+[![Demo Video](https://img.shields.io/badge/Demo-Watch%20on%20YouTube-red)](https://youtu.be/Z29gxl4zI4I)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
@@ -289,7 +289,7 @@ npm run dev
 
 ## Demo Video
 
-**Watch our 3-minute demonstration:** [SwiftApply Demo on YouTube](YOUR_VIDEO_LINK_HERE)
+**Watch our 3-minute demonstration:** [SwiftApply Demo on YouTube](https://youtu.be/Z29gxl4zI4I)
 
 The video demonstrates:
 - Extension installation and profile setup
@@ -453,4 +453,4 @@ Thank you to the Google Chrome Team for creating the built-in AI APIs, the Gemin
 
 ---
 
-**Built with Chrome Built-in AI | [Star on GitHub](https://github.com/Essam-Khawaja/swiftapply) | [Watch Demo](YOUR_VIDEO_LINK_HERE)**
+**Built with Chrome Built-in AI | [Star on GitHub](https://github.com/Essam-Khawaja/swiftapply) | [Watch Demo](https://youtu.be/Z29gxl4zI4I)**
