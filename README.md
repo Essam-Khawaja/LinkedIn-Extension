@@ -223,7 +223,7 @@ AI-powered job application assistance was previously impractical because:
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/swiftapply.git
+git clone https://github.com/Essam-Khawaja/swiftapply.git
 cd swiftapply
 
 # Install dependencies
@@ -441,14 +441,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact and Support
 
-**Developer:** [Your Name](https://github.com/Essam-Khawaja)  
-**Email:** your.email@example.com  
-**LinkedIn:** [Your LinkedIn Profile](https://linkedin.com/in/YOUR_PROFILE)
-
-**Support Resources:**
-- Bug Reports: [GitHub Issues](https://github.com/Essam-Khawaja/swiftapply/issues)
-- Discussions: [GitHub Discussions](https://github.com/Essam-Khawaja/swiftapply/discussions)
-- Documentation: [Wiki](https://github.com/Essam-Khawaja/swiftapply/wiki)
+**Developer:** [Syed Essam Uddin Khawaja](https://github.com/Essam-Khawaja)  
+**Email:** syedessam345@gmail.com
+**LinkedIn:** [My LinkedIn](https://linkedin.com/in/syed-essam)
 
 ---
 
@@ -458,4 +453,4 @@ Thank you to the Google Chrome Team for creating the built-in AI APIs, the Gemin
 
 ---
 
-**Built with Chrome Built-in AI | [Star on GitHub](https://github.com/YOUR_USERNAME/swiftapply) | [Watch Demo](YOUR_VIDEO_LINK_HERE)**
+**Built with Chrome Built-in AI | [Star on GitHub](https://github.com/Essam-Khawaja/swiftapply) | [Watch Demo](YOUR_VIDEO_LINK_HERE)**
